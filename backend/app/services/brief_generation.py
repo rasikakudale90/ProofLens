@@ -1,0 +1,179 @@
+import uuid
+import logging
+from typing import List, Optional
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.errors import AppError
+from app.db.models import Workspace, AnalysisRun
+from app.schemas.brief import (
+    BriefCreateRequest,
+    BriefResponse,
+    BriefFinding,
+)
+from app.providers.base import AIProvider
+from app.providers.gemini import get_ai_provider
+from app.services.retrieval import retrieve_evidence
+from app.services.citation_validation import validate_and_assemble_citations
+
+logger = logging.getLogger(__name__)
+
+
+class RawLLMBriefFinding(BaseModel):
+    statement: str
+    cited_chunk_ids: List[str] = Field(default_factory=list)
+
+
+class RawLLMResearchBrief(BaseModel):
+    executive_summary: str
+    key_findings: List[RawLLMBriefFinding]
+    disagreements: List[str] = Field(default_factory=list)
+    limitations: List[str] = Field(default_factory=list)
+
+
+SYSTEM_BRIEF_PROMPT = """You are ProofLens AI's Research Brief Generator.
+Generate a structured, objective, evidence-based research brief on the given topic based ONLY on the evidence excerpts provided.
+
+STRUCTURE:
+1. Executive Summary: High-level synthesis of what the documents establish.
+2. Key Findings: Specific factual takeaways with citations.
+3. Disagreements: Any conflicting data, definitions or timelines between sources.
+4. Limitations: Open questions or topics not covered by the documents.
+"""
+
+
+def generate_research_brief(
+    db: Session,
+    workspace_id: str,
+    payload: BriefCreateRequest,
+    ai_provider: Optional[AIProvider] = None,
+) -> BriefResponse:
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise AppError(code="RESOURCE_NOT_FOUND", message=f"Workspace {workspace_id} not found.", status_code=404)
+
+    provider = ai_provider or get_ai_provider()
+
+    # 1. Retrieve Candidate Evidence
+    evidence = retrieve_evidence(
+        db=db,
+        workspace_id=workspace_id,
+        question=payload.topic,
+        document_ids=payload.document_ids,
+        top_k=8,
+        similarity_threshold=0.1,
+        ai_provider=provider,
+    )
+
+    brief_id = str(uuid.uuid4())
+    findings: List[BriefFinding] = []
+    limitations: List[str] = []
+    disagreements: List[str] = []
+
+    if not evidence:
+        exec_summary = f"No relevant evidence was found in the workspace for topic '{payload.topic}'."
+        limitations.append("The document collection lacks information on this topic.")
+    elif not settings.GEMINI_API_KEY:
+        # Mock mode
+        first_chunk = evidence[0]
+        cits = validate_and_assemble_citations([first_chunk.chunk_id], evidence)
+        exec_summary = f"Executive brief on '{payload.topic}' synthesized from available documents."
+        findings.append(
+            BriefFinding(
+                statement=f"Document {first_chunk.document_name} indicates key evidence: {first_chunk.excerpt[:150]}...",
+                citations=cits,
+            )
+        )
+    else:
+        context_str = "\n".join([f"[{e.chunk_id}] {e.document_name} (Page {e.page_number}): {e.excerpt}" for e in evidence])
+        user_prompt = f"RESEARCH TOPIC:\n{payload.topic}\n\nEVIDENCE PASSAGES:\n{context_str}"
+
+        try:
+            raw_brief = provider.generate_structured(
+                system_instruction=SYSTEM_BRIEF_PROMPT,
+                user_prompt=user_prompt,
+                response_schema=RawLLMResearchBrief,
+            )
+            exec_summary = raw_brief.executive_summary
+            disagreements = raw_brief.disagreements
+            limitations = raw_brief.limitations
+
+            for rf in raw_brief.key_findings:
+                cits = validate_and_assemble_citations(rf.cited_chunk_ids, evidence)
+                findings.append(BriefFinding(statement=rf.statement, citations=cits))
+        except Exception as e:
+            logger.error(f"Error in brief generation: {e}")
+            raise AppError(code="PROVIDER_ERROR", message=f"Brief generation failed: {str(e)}", status_code=502)
+
+    # 2. Build Markdown Content
+    md_lines = [
+        f"# Research Brief: {payload.topic}",
+        "",
+        "## Executive Summary",
+        exec_summary,
+        "",
+        "## Key Findings",
+    ]
+
+    if findings:
+        for f in findings:
+            cit_refs = " ".join([f"[[{c.document_name}, p.{c.page_number}]]" for c in f.citations])
+            md_lines.append(f"- **Finding:** {f.statement} {cit_refs}")
+    else:
+        md_lines.append("- *No verified findings available.*")
+
+    if disagreements:
+        md_lines.extend(["", "## Conflicting Findings & Disagreements"])
+        for d in disagreements:
+            md_lines.append(f"- {d}")
+
+    if limitations:
+        md_lines.extend(["", "## Limitations & Gaps"])
+        for lim in limitations:
+            md_lines.append(f"- {lim}")
+
+    md_lines.extend(["", "---", "*Generated by ProofLens AI — Verifiable Answers*"])
+    markdown_content = "\n".join(md_lines)
+
+    # Persist AnalysisRun
+    try:
+        run = AnalysisRun(
+            id=brief_id,
+            workspace_id=workspace_id,
+            analysis_type="research_brief",
+            input_data={"topic": payload.topic, "document_ids": payload.document_ids},
+            result_data={
+                "executive_summary": exec_summary,
+                "findings": [f.model_dump() for f in findings],
+                "markdown": markdown_content,
+            },
+            status="completed",
+        )
+        db.add(run)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Could not persist research brief: {e}")
+        db.rollback()
+
+    return BriefResponse(
+        brief_id=brief_id,
+        workspace_id=workspace_id,
+        topic=payload.topic,
+        executive_summary=exec_summary,
+        key_findings=findings,
+        disagreements=disagreements,
+        limitations=limitations,
+        markdown_content=markdown_content,
+    )
+
+
+def get_brief_markdown(db: Session, workspace_id: str, brief_id: str) -> str:
+    run = db.query(AnalysisRun).filter(
+        AnalysisRun.id == brief_id,
+        AnalysisRun.workspace_id == workspace_id,
+        AnalysisRun.analysis_type == "research_brief",
+    ).first()
+    if not run or not run.result_data or "markdown" not in run.result_data:
+        raise AppError(code="RESOURCE_NOT_FOUND", message=f"Research brief {brief_id} not found.", status_code=404)
+    return run.result_data["markdown"]
