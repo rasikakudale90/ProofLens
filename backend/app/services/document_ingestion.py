@@ -1,6 +1,6 @@
 import uuid
 import logging
-from typing import Optional
+from typing import Optional, Any
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,6 +19,7 @@ def ingest_document(
     workspace_id: str,
     filename: str,
     file_bytes: bytes,
+    ai_provider: Optional[Any] = None,
 ) -> Document:
     # 1. Validate Workspace
     workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
@@ -87,9 +88,17 @@ def ingest_document(
             )
             db.add(db_page)
 
-        # Generate chunks
+        # Generate chunks and embeddings
         chunks = chunk_extracted_pages(pages)
-        for c in chunks:
+        chunk_texts = [c.text for c in chunks]
+
+        # Generate embeddings if provider is available
+        from app.providers.gemini import get_ai_provider
+        provider = ai_provider or get_ai_provider()
+        embeddings = provider.embed_batch(chunk_texts) if chunk_texts else []
+
+        for idx, c in enumerate(chunks):
+            chunk_embedding = embeddings[idx] if idx < len(embeddings) else None
             db_chunk = DocumentChunk(
                 document_id=doc.id,
                 page_number=c.page_number,
@@ -97,6 +106,8 @@ def ingest_document(
                 text=c.text,
                 start_char=c.start_char,
                 end_char=c.end_char,
+                embedding_model=settings.GEMINI_EMBEDDING_MODEL,
+                embedding=chunk_embedding,
             )
             db.add(db_chunk)
 
