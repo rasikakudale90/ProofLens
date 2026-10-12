@@ -51,8 +51,12 @@ app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
-# Health routes
+from app.api.routes import health, workspaces, documents
+
+# Routes
 app.include_router(health.router)
+app.include_router(workspaces.router, prefix=settings.API_V1_PREFIX)
+app.include_router(documents.router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def root():

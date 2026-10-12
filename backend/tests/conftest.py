@@ -9,12 +9,15 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.storage.local import LocalStorageService
 
+from sqlalchemy.pool import StaticPool
+
 # In-memory SQLite engine for fast, isolated unit testing
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
 
 test_engine = create_engine(
     SQLALCHEMY_TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
@@ -36,21 +39,28 @@ def db_session():
         db.close()
 
 
-@pytest.fixture
-def client(db_session):
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+from app.api.deps import get_database, get_storage
 
 
 @pytest.fixture
 def temp_storage(tmp_path):
     storage_dir = str(tmp_path / "test_storage")
     return LocalStorageService(base_dir=storage_dir)
+
+
+@pytest.fixture
+def client(db_session, temp_storage):
+    def override_get_database():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    def override_get_storage():
+        return temp_storage
+
+    app.dependency_overrides[get_database] = override_get_database
+    app.dependency_overrides[get_storage] = override_get_storage
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
