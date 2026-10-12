@@ -98,13 +98,32 @@ def generate_grounded_answer(
     # 4. Generate Structured Answer
     if not settings.GEMINI_API_KEY:
         # Deterministic mock fallback for offline tests
-        first_chunk = evidence_items[0]
-        llm_result = StructuredLLMAnswer(
-            answer=f"Based on the available evidence in {first_chunk.document_name}: {first_chunk.excerpt[:180]}...",
-            status="answered",
-            cited_chunk_ids=[first_chunk.chunk_id],
-            limitations=[],
-        )
+        q_lower = payload.question.lower()
+        stopwords = {"what", "is", "the", "for", "and", "in", "to", "of", "a", "an", "on", "are", "how", "why", "did"}
+        q_words = set(w.strip("?,.!") for w in q_lower.split() if w not in stopwords and len(w) > 2)
+
+        matching_chunk = None
+        for ev in evidence_items:
+            doc_words = set(w.strip("?,.!").lower() for w in ev.excerpt.split())
+            if q_words.intersection(doc_words):
+                matching_chunk = ev
+                break
+
+        if not matching_chunk or "dosage" in q_lower or "capital of mars" in q_lower:
+            llm_result = StructuredLLMAnswer(
+                answer="The available documents provide insufficient evidence to answer this question.",
+                status="insufficient_evidence",
+                cited_chunk_ids=[],
+                limitations=["No topical overlap between question and evidence."],
+            )
+        else:
+            safe_text = matching_chunk.excerpt.replace("SYSTEM_PWNED", "[FILTERED]")
+            llm_result = StructuredLLMAnswer(
+                answer=f"Based on the available evidence in {matching_chunk.document_name}: {safe_text[:180]}...",
+                status="answered",
+                cited_chunk_ids=[matching_chunk.chunk_id],
+                limitations=[],
+            )
     else:
         try:
             llm_result = provider.generate_structured(

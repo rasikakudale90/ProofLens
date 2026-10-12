@@ -60,6 +60,7 @@ from app.api.routes import (
     claims,
     comparisons,
     briefs,
+    evaluation,
 )
 
 # Routes
@@ -71,6 +72,7 @@ app.include_router(answers.router, prefix=settings.API_V1_PREFIX)
 app.include_router(claims.router, prefix=settings.API_V1_PREFIX)
 app.include_router(comparisons.router, prefix=settings.API_V1_PREFIX)
 app.include_router(briefs.router, prefix=settings.API_V1_PREFIX)
+app.include_router(evaluation.router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def root():

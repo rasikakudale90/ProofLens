@@ -32,7 +32,8 @@ pnpm-debug.log*
 # Database & local storage
 *.sqlite3
 *.db
-storage/local/
+storage/
+backend/storage/
 uploads/
 
 # OS & Editor
