@@ -38,7 +38,8 @@ class FlexibleVector(TypeDecorator):
         self.dimensions = dimensions
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == "postgresql" and Vector is not None:
+        from app.core.config import settings
+        if dialect.name == "postgresql" and getattr(settings, "USE_PGVECTOR", False) and Vector is not None:
             return dialect.type_descriptor(Vector(self.dimensions))
         return dialect.type_descriptor(JSON())
 

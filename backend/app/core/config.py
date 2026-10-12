@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     ]
 
     # Database
-    DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
+    DATABASE_URL: str = "postgresql+psycopg://postgres:rasika@localhost:5432/prooflens"
+    USE_PGVECTOR: bool = False
 
     # Storage
     STORAGE_BACKEND: Literal["local", "supabase"] = "local"

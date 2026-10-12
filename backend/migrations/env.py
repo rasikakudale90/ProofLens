@@ -60,9 +60,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        if connection.dialect.name == "postgresql":
-            from sqlalchemy import text
-            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+        if connection.dialect.name == "postgresql" and settings.USE_PGVECTOR:
+            try:
+                from sqlalchemy import text
+                connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            except Exception:
+                pass
 
         context.configure(
             connection=connection, target_metadata=target_metadata

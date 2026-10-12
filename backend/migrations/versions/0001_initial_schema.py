@@ -21,10 +21,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Enable pgvector extension if on PostgreSQL
+    has_vector = False
     conn = op.get_bind()
     if conn.dialect.name == "postgresql":
-        op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+        try:
+            check_ext = conn.execute(sa.text("SELECT 1 FROM pg_available_extensions WHERE name = 'vector';")).fetchall()
+            if check_ext:
+                op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                has_vector = True
+        except Exception:
+            pass
 
     # 2. workspaces
     op.create_table(
@@ -78,7 +84,7 @@ def upgrade() -> None:
         sa.Column('embedding_model', sa.String(length=100), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     ]
-    if conn.dialect.name == "postgresql" and Vector is not None:
+    if has_vector and Vector is not None:
         chunk_columns.append(sa.Column('embedding', Vector(768), nullable=True))
     else:
         chunk_columns.append(sa.Column('embedding', sa.JSON(), nullable=True))
@@ -88,7 +94,7 @@ def upgrade() -> None:
     op.create_unique_constraint('uq_document_chunk_idx', 'document_chunks', ['document_id', 'chunk_index'])
 
     # HNSW vector index for pgvector
-    if conn.dialect.name == "postgresql":
+    if has_vector:
         op.execute("""
             CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding 
             ON document_chunks USING hnsw (embedding vector_cosine_ops);
