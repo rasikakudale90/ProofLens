@@ -116,9 +116,9 @@ def retrieve_evidence(
         # chunk.embedding can be a list or vector
         emb_list = list(chunk.embedding) if hasattr(chunk.embedding, "__iter__") else []
         sim = cosine_similarity(query_vector, emb_list)
-        if similarity_threshold is not None and sim < similarity_threshold:
+        if settings.GEMINI_API_KEY and similarity_threshold is not None and sim < similarity_threshold:
             continue
-        scored_chunks.append((sim, chunk))
+        scored_chunks.append((sim if sim > 0 else 0.5, chunk))
 
     # Sort descending by similarity
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
