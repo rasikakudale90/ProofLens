@@ -54,8 +54,8 @@ def retrieve_evidence(
     query_vector = provider.embed_text(question)
 
     # 4. Query Chunks
-    # If using PostgreSQL with pgvector
-    if db.bind and db.bind.dialect.name == "postgresql":
+    # If using PostgreSQL with pgvector enabled
+    if db.bind and db.bind.dialect.name == "postgresql" and settings.USE_PGVECTOR:
         # Using pgvector cosine distance: <=> operator
         # similarity = 1 - (embedding <=> query_vector)
         stmt = text("""
@@ -103,6 +103,7 @@ def retrieve_evidence(
                 )
             return items
         except Exception:
+            db.rollback()
             pass  # Fallback to in-python similarity if pgvector extension or query fails
 
     # Universal / SQLite Fallback: Retrieve scoped chunks and rank in memory

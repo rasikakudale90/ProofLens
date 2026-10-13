@@ -30,3 +30,13 @@ def get_workspace(workspace_id: str, db: Session = Depends(get_database)):
     if not ws:
         raise AppError(code="RESOURCE_NOT_FOUND", message=f"Workspace {workspace_id} not found.", status_code=404)
     return ws
+
+
+@router.delete("/{workspace_id}", status_code=status.HTTP_200_OK)
+def delete_workspace(workspace_id: str, db: Session = Depends(get_database)):
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not ws:
+        raise AppError(code="RESOURCE_NOT_FOUND", message=f"Workspace {workspace_id} not found.", status_code=404)
+    db.delete(ws)
+    db.commit()
+    return {"message": "Workspace deleted successfully", "workspace_id": workspace_id}
