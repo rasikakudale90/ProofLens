@@ -31,6 +31,8 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   backendOnline: boolean;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
@@ -43,6 +45,8 @@ export function Sidebar({
   isCollapsed,
   onToggleCollapse,
   backendOnline,
+  isMobileOpen,
+  onCloseMobile,
 }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
 
@@ -56,11 +60,22 @@ export function Sidebar({
   ];
 
   return (
-    <aside
-      className={`relative flex flex-col justify-between border-r border-border bg-surface transition-all duration-200 z-20 ${
-        isCollapsed ? "w-[72px]" : "w-[248px]"
-      } shrink-0`}
-    >
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {isMobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 bg-overlay/50 backdrop-blur-xs z-30 md:hidden animate-in fade-in duration-150"
+        />
+      )}
+
+      <aside
+        className={`fixed md:relative inset-y-0 left-0 flex flex-col justify-between border-r border-border bg-surface transition-all duration-200 z-40 md:z-20 ${
+          isCollapsed ? "w-[72px]" : "w-[248px]"
+        } ${
+          isMobileOpen ? "translate-x-0 shadow-xl" : "-translate-x-full md:translate-x-0"
+        } shrink-0`}
+      >
       {/* Top: Brand & Workspace Selector */}
       <div className="flex flex-col">
         {/* Brand Header */}
@@ -207,5 +222,6 @@ export function Sidebar({
         </button>
       </div>
     </aside>
+    </>
   );
 }

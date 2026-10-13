@@ -7,11 +7,8 @@ import {
   FileCheck,
   ShieldCheck,
   AlertTriangle,
-  Info,
   CheckCircle2,
   Bookmark,
-  Sparkles,
-  HelpCircle,
   FileQuestion,
 } from "lucide-react";
 import { DocumentItem, GroundedAnswerResponse, CitationItem } from "@/lib/types";

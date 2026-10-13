@@ -3,15 +3,9 @@
 import React, { useState, useEffect } from "react";
 import {
   ShieldCheck,
-  CheckCircle2,
   AlertTriangle,
   Play,
   Loader2,
-  Clock,
-  Database,
-  BarChart2,
-  Layers,
-  Sparkles,
   Info,
 } from "lucide-react";
 import { EvaluationSummaryResponse } from "@/lib/types";
@@ -26,7 +20,6 @@ export function EvaluationDashboard({
   onRunEvaluation,
 }: EvaluationDashboardProps) {
   const [data, setData] = useState<EvaluationSummaryResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +31,6 @@ export function EvaluationDashboard({
         if (mounted) setData(res);
       } catch (err: unknown) {
         console.warn("No evaluation runs yet:", err);
-      } finally {
-        if (mounted) setIsLoading(false);
       }
     };
     fetchSummary();

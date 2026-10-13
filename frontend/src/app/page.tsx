@@ -21,7 +21,7 @@ import {
   ResearchBriefResponse,
   EvaluationSummaryResponse,
 } from "@/lib/types";
-import { Plus, X, Loader2, AlertCircle } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 
 export default function Home() {
   const [currentTab, setCurrentTab] = useState<NavTab>("documents");
@@ -34,6 +34,7 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [activeCitation, setActiveCitation] = useState<CitationItem | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Ask Question handler
   const handleAskQuestion = async (question: string): Promise<GroundedAnswerResponse> => {
@@ -103,32 +104,37 @@ export default function Home() {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
   // 1. Initial health and workspace load
-  const loadInitialData = useCallback(async () => {
-    try {
-      const readyRes = await api.getReady();
-      setBackendOnline(readyRes.status === "ready");
-
-      const wsList = await api.getWorkspaces();
-      if (wsList.length > 0) {
-        setWorkspaces(wsList);
-        setCurrentWorkspace(wsList[0]);
-      } else {
-        // Create default workspace if none exists
-        const defaultWs = await api.createWorkspace("ProofLens Default Investigation");
-        setWorkspaces([defaultWs]);
-        setCurrentWorkspace(defaultWs);
-      }
-    } catch (err) {
-      console.error("Failed to connect to backend:", err);
-      setBackendOnline(false);
-    } finally {
-      setLoadingInitial(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    let active = true;
+    const init = async () => {
+      try {
+        const readyRes = await api.getReady();
+        if (active) setBackendOnline(readyRes.status === "ready");
+
+        const wsList = await api.getWorkspaces();
+        if (active) {
+          if (wsList.length > 0) {
+            setWorkspaces(wsList);
+            setCurrentWorkspace(wsList[0]);
+          } else {
+            // Create default workspace if none exists
+            const defaultWs = await api.createWorkspace("ProofLens Default Investigation");
+            setWorkspaces([defaultWs]);
+            setCurrentWorkspace(defaultWs);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to connect to backend:", err);
+        if (active) setBackendOnline(false);
+      } finally {
+        if (active) setLoadingInitial(false);
+      }
+    };
+    init();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // 2. Load documents when active workspace changes
   const loadDocuments = useCallback(async () => {
@@ -136,12 +142,10 @@ export default function Home() {
     try {
       const docs = await api.getDocuments(currentWorkspace.id);
       setDocuments(docs);
-      // Automatically scope all ready documents by default if not set
       setSelectedDocumentIds((prev) => {
         if (prev.length === 0) {
           return docs.filter((d) => d.status === "ready").map((d) => d.id);
         }
-        // Filter out any IDs no longer in list
         return prev.filter((id) => docs.some((d) => d.id === id));
       });
     } catch (err) {
@@ -150,10 +154,29 @@ export default function Home() {
   }, [currentWorkspace]);
 
   useEffect(() => {
-    if (currentWorkspace) {
-      loadDocuments();
-    }
-  }, [currentWorkspace, loadDocuments]);
+    let active = true;
+    if (!currentWorkspace) return;
+    const fetchDocs = async () => {
+      try {
+        const docs = await api.getDocuments(currentWorkspace.id);
+        if (active) {
+          setDocuments(docs);
+          setSelectedDocumentIds((prev) => {
+            if (prev.length === 0) {
+              return docs.filter((d) => d.status === "ready").map((d) => d.id);
+            }
+            return prev.filter((id) => docs.some((d) => d.id === id));
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load documents:", err);
+      }
+    };
+    fetchDocs();
+    return () => {
+      active = false;
+    };
+  }, [currentWorkspace]);
 
   // 3. Document handlers
   const handleUploadDocument = async (file: File) => {
@@ -213,7 +236,10 @@ export default function Home() {
       {/* Left Application Sidebar */}
       <Sidebar
         currentTab={currentTab}
-        onTabChange={setCurrentTab}
+        onTabChange={(tab) => {
+          setCurrentTab(tab);
+          setIsMobileMenuOpen(false);
+        }}
         workspaces={workspaces}
         currentWorkspace={currentWorkspace}
         onWorkspaceChange={setCurrentWorkspace}
@@ -221,6 +247,8 @@ export default function Home() {
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         backendOnline={backendOnline}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Workspace Area */}
@@ -230,6 +258,7 @@ export default function Home() {
           workspaceName={currentWorkspace?.name}
           selectedDocuments={selectedDocs}
           totalDocuments={documents.length}
+          onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
         />
 
         {/* Tab Canvas */}

@@ -6,11 +6,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  FileText,
   Loader2,
   Info,
-  Calendar,
-  Layers,
 } from "lucide-react";
 import { DocumentItem, ContradictionItem, ContradictionResponse } from "@/lib/types";
 
@@ -203,7 +200,7 @@ export function ContradictionRadar({ documents, onCompare }: ContradictionRadarP
                     <span className="text-[11px] uppercase tracking-wider text-primary font-semibold">
                       Source A Viewpoint
                     </span>
-                    <p className="text-xs text-foreground font-medium">"{item.doc_a_claim}"</p>
+                    <p className="text-xs text-foreground font-medium">&ldquo;{item.doc_a_claim}&rdquo;</p>
                     <span className="text-[11px] text-muted-foreground font-mono mt-auto pt-1 border-t border-border/50">
                       Citation: {item.doc_a_citation}
                     </span>
@@ -214,7 +211,7 @@ export function ContradictionRadar({ documents, onCompare }: ContradictionRadarP
                     <span className="text-[11px] uppercase tracking-wider text-primary font-semibold">
                       Source B Viewpoint
                     </span>
-                    <p className="text-xs text-foreground font-medium">"{item.doc_b_claim}"</p>
+                    <p className="text-xs text-foreground font-medium">&ldquo;{item.doc_b_claim}&rdquo;</p>
                     <span className="text-[11px] text-muted-foreground font-mono mt-auto pt-1 border-t border-border/50">
                       Citation: {item.doc_b_citation}
                     </span>

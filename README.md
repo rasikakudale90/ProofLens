@@ -67,13 +67,34 @@ uvicorn app.main:app --reload --port 8000
 - Interactive Swagger API Documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Interactive ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-### 4. Run Tests
+### 4. Frontend Setup & Run
 ```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+- Web Application: [http://localhost:3000](http://localhost:3000)
+
+### 5. Run Tests
+```bash
+# Run backend test suite
+cd backend
 pytest tests
+
+# Run frontend lint and build verification
+cd ../frontend
+npm run lint
+npm run build
 ```
 
-### 5. Run the Evaluation Benchmark
+### 6. Run the Evaluation Benchmark
 ```bash
+cd backend
 python evals/run_eval.py
 ```
 
@@ -106,7 +127,10 @@ All application endpoints are versioned under `/api/v1`.
 
 ---
 
-## Documentation
-- [Project Kickoff PRD v1.0](docs/ProofLens-AI-Project-Kickoff-PRD-v0.1.md)
+## Documentation & Specifications
+- [Project Kickoff PRD v0.1](docs/ProofLens-AI-Project-Kickoff-PRD-v0.1.md)
 - [Backend Software Requirements Specification (SRS v1.0)](docs/ProofLens-AI-Backend-SRS-v1.0.md)
-- [Technical Design & Planning Prompt](docs/ProofLens-AI-Antigravity-TDD-Planning-Prompt.md)
+- [Technical Design Document (TDD)](docs/TECHNICAL-DESIGN.md)
+- [Phased Implementation Plan](docs/IMPLEMENTATION-PLAN.md)
+- [Frontend Design Tokens & UX Rules](ProofLens-AI-DESIGN-TOKENS.md)
+- [Agent Implementation Directives](ProofLens-AI-AGENTS.md)

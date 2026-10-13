@@ -3,13 +3,14 @@
 import React from "react";
 import { NavTab } from "./sidebar";
 import { DocumentItem } from "@/lib/types";
-import { FileCheck, Sparkles } from "lucide-react";
+import { FileCheck, Menu } from "lucide-react";
 
 interface HeaderProps {
   currentTab: NavTab;
   workspaceName?: string;
   selectedDocuments: DocumentItem[];
   totalDocuments: number;
+  onToggleMobileMenu?: () => void;
 }
 
 export function Header({
@@ -17,6 +18,7 @@ export function Header({
   workspaceName,
   selectedDocuments,
   totalDocuments,
+  onToggleMobileMenu,
 }: HeaderProps) {
   const titles: Record<NavTab, { title: string; subtitle: string }> = {
     documents: {
@@ -48,19 +50,30 @@ export function Header({
   const { title, subtitle } = titles[currentTab];
 
   return (
-    <header className="h-16 px-6 border-b border-border bg-surface flex items-center justify-between shrink-0">
-      <div className="flex flex-col justify-center min-w-0">
-        <div className="flex items-center gap-2">
-          <h1 className="text-base font-semibold text-foreground tracking-tight truncate">
-            {title}
-          </h1>
-          {workspaceName && (
-            <span className="text-[11px] px-2 py-0.5 rounded-[4px] bg-surface-muted text-muted-foreground border border-border font-medium">
-              {workspaceName}
-            </span>
-          )}
+    <header className="h-16 px-4 sm:px-6 border-b border-border bg-surface flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-3 min-w-0">
+        {onToggleMobileMenu && (
+          <button
+            onClick={onToggleMobileMenu}
+            aria-label="Open navigation menu"
+            className="md:hidden p-1.5 rounded-[7px] text-muted-foreground hover:text-foreground hover:bg-surface-muted"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        <div className="flex flex-col justify-center min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm sm:text-base font-semibold text-foreground tracking-tight truncate">
+              {title}
+            </h1>
+            {workspaceName && (
+              <span className="hidden xs:inline-block text-[11px] px-2 py-0.5 rounded-[4px] bg-surface-muted text-muted-foreground border border-border font-medium truncate max-w-[140px]">
+                {workspaceName}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
       </div>
 
       {/* Scope Indicator for investigation tabs */}

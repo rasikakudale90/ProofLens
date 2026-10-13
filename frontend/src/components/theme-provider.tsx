@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
@@ -14,40 +14,41 @@ const ThemeContext = createContext<ThemeContextType>({
   toggleTheme: () => {},
 });
 
+function getThemeSnapshot(): Theme {
+  if (typeof window === "undefined") return "light";
+  return (localStorage.getItem("prooflens-theme") as Theme) === "dark" ? "dark" : "light";
+}
+
+function getServerSnapshot(): Theme {
+  return "light";
+}
+
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
+  const theme = useSyncExternalStore(subscribe, getThemeSnapshot, getServerSnapshot);
 
   useEffect(() => {
-    const saved = localStorage.getItem("prooflens-theme") as Theme | null;
-    if (saved === "dark" || saved === "light") {
-      setTheme(saved);
-      if (saved === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
     } else {
-      // Default to light theme as specified in design tokens
       document.documentElement.classList.remove("dark");
     }
-    setMounted(true);
-  }, []);
+  }, [theme]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
-    setTheme(nextTheme);
     localStorage.setItem("prooflens-theme", nextTheme);
     if (nextTheme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
+    window.dispatchEvent(new Event("storage"));
   };
-
-  if (!mounted) {
-    return <div style={{ visibility: "hidden" }}>{children}</div>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

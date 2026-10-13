@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, FileText, Bookmark, ExternalLink, ShieldAlert, Sparkles } from "lucide-react";
+import { X, FileText, Bookmark } from "lucide-react";
 import { CitationItem, RetrievedEvidenceItem } from "@/lib/types";
 
 interface EvidenceInspectorProps {
@@ -91,7 +91,7 @@ export function EvidenceInspector({
             </span>
           </div>
           <blockquote className="p-3.5 rounded-[7px] bg-accent/20 border-l-2 border-primary text-xs leading-relaxed text-foreground italic whitespace-pre-wrap select-text font-serif">
-            "{excerpt}"
+            &ldquo;{excerpt}&rdquo;
           </blockquote>
         </div>
 

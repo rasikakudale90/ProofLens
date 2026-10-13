@@ -6,11 +6,9 @@ import {
   Download,
   Loader2,
   Printer,
-  Sparkles,
   AlertTriangle,
   CheckCircle2,
   FileCheck,
-  Bookmark,
 } from "lucide-react";
 import { DocumentItem, ResearchBriefResponse } from "@/lib/types";
 

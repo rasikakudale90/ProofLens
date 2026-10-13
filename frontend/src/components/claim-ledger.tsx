@@ -170,7 +170,7 @@ export function ClaimLedger({
               Audit Results ({assessmentResults.length} Claims)
             </h3>
             <span className="text-[11px] text-muted-foreground">
-              Click "Inspect Excerpts" to audit supporting/contradicting passages
+              Click &quot;Inspect Excerpts&quot; to audit supporting/contradicting passages
             </span>
           </div>
 
@@ -279,7 +279,7 @@ export function ClaimLedger({
                         key={idx}
                         className="p-3 rounded-[7px] bg-accent/15 border-l-2 border-primary text-xs leading-relaxed text-foreground italic font-serif"
                       >
-                        "{excerpt}"
+                        &ldquo;{excerpt}&rdquo;
                       </blockquote>
                     ))}
                   </div>

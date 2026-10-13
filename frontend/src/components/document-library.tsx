@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Calendar,
-  Layers,
   FileCheck2,
 } from "lucide-react";
 import { DocumentItem } from "@/lib/types";
