@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+:root {
+  /* ProofLens Light Theme (Warm Paper & Ink) */
+  --background: #F5F1EA;
+  --foreground: #252522;
+  --surface: #FFFDFA;
+  --surface-muted: #EEE8DF;
+  --surface-raised: #FFFFFF;
+  --border: #DED7CC;
+  --border-strong: #C6BCAF;
+  --muted: #746F67;
+  --muted-foreground: #746F67;
+  --primary: #A95532;
+  --primary-hover: #8F4528;
+  --primary-foreground: #FFFFFF;
+  --accent: #E8D5C8;
+  --accent-foreground: #59311F;
+  --link: #315C78;
+  --focus-ring: #527C98;
+  --success: #426B50;
+  --success-soft: #DDE8DF;
+  --warning: #91651B;
+  --warning-soft: #F2E2BE;
+  --danger: #963F38;
+  --danger-soft: #EBD8D5;
+  --info: #315C78;
+  --info-soft: #DCE7ED;
+  --overlay: rgba(37, 37, 34, 0.42);
+
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+}
+
+.dark {
+  /* ProofLens Dark Theme (Charcoal & Ink) */
+  --background: #191A19;
+  --foreground: #F0EDE7;
+  --surface: #222421;
+  --surface-muted: #2A2C28;
+  --surface-raised: #30322E;
+  --border: #3A3C36;
+  --border-strong: #50534B;
+  --muted: #B0ADA4;
+  --muted-foreground: #B0ADA4;
+  --primary: #D18A67;
+  --primary-hover: #E0A080;
+  --primary-foreground: #211B17;
+  --accent: #49352C;
+  --accent-foreground: #F1D9CA;
+  --link: #9FC6E0;
+  --focus-ring: #9FC6E0;
+  --success: #8EC49A;
+  --success-soft: #293B2E;
+  --warning: #E0BB6E;
+  --warning-soft: #443921;
+  --danger: #E39A91;
+  --danger-soft: #472B29;
+  --info: #9FC6E0;
+  --info-soft: #293943;
+  --overlay: rgba(0, 0, 0, 0.62);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-link: var(--link);
+  --color-focus-ring: var(--focus-ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars matching warm paper / charcoal aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
