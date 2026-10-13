@@ -6,8 +6,17 @@ import { Header } from "@/components/header";
 import { DocumentLibrary } from "@/components/document-library";
 import { EvidenceAssistant } from "@/components/evidence-assistant";
 import { EvidenceInspector } from "@/components/evidence-inspector";
+import { ClaimLedger } from "@/components/claim-ledger";
+import { ContradictionRadar } from "@/components/contradiction-radar";
 import { api } from "@/lib/api";
-import { Workspace, DocumentItem, CitationItem, GroundedAnswerResponse } from "@/lib/types";
+import {
+  Workspace,
+  DocumentItem,
+  CitationItem,
+  GroundedAnswerResponse,
+  ClaimAssessmentResponse,
+  ContradictionResponse,
+} from "@/lib/types";
 import { Plus, X, Loader2, AlertCircle } from "lucide-react";
 
 export default function Home() {
@@ -30,6 +39,25 @@ export default function Home() {
       question,
       selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
     );
+  };
+
+  // Claim Assessment handler
+  const handleAssessClaims = async (claims: string[]): Promise<ClaimAssessmentResponse> => {
+    if (!currentWorkspace) throw new Error("No active workspace selected.");
+    return api.assessClaims(
+      currentWorkspace.id,
+      claims,
+      selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
+    );
+  };
+
+  // Contradiction Radar handler
+  const handleCompareDocuments = async (
+    docIds: string[],
+    topic: string
+  ): Promise<ContradictionResponse> => {
+    if (!currentWorkspace) throw new Error("No active workspace selected.");
+    return api.compareDocuments(currentWorkspace.id, docIds, topic);
   };
 
   // New Workspace Modal
@@ -208,19 +236,37 @@ export default function Home() {
                 </div>
               )}
 
-              {currentTab !== "documents" && currentTab !== "assistant" && (
-                <div className="p-8 max-w-[1200px] mx-auto text-center flex flex-col items-center justify-center min-h-[500px] gap-3">
-                  <div className="p-4 rounded-full bg-surface-muted text-primary">
-                    <AlertCircle className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-base font-semibold text-foreground">
-                    Tab Under Construction (Next Phase)
-                  </h3>
-                  <p className="text-xs text-muted-foreground max-w-md">
-                    You are in Phase 3. The Document Library, Evidence Assistant, and Evidence Inspector are active. Next phase implements Claim Ledger and Contradiction Radar.
-                  </p>
-                </div>
+              {currentTab === "claims" && (
+                <ClaimLedger
+                  documents={documents}
+                  selectedDocumentIds={selectedDocumentIds}
+                  onAssess={handleAssessClaims}
+                />
               )}
+
+              {currentTab === "radar" && (
+                <ContradictionRadar
+                  documents={documents}
+                  onCompare={handleCompareDocuments}
+                />
+              )}
+
+              {currentTab !== "documents" &&
+                currentTab !== "assistant" &&
+                currentTab !== "claims" &&
+                currentTab !== "radar" && (
+                  <div className="p-8 max-w-[1200px] mx-auto text-center flex flex-col items-center justify-center min-h-[500px] gap-3">
+                    <div className="p-4 rounded-full bg-surface-muted text-primary">
+                      <AlertCircle className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      Tab Under Construction (Next Phase)
+                    </h3>
+                    <p className="text-xs text-muted-foreground max-w-md">
+                      You are in Phase 4. Document Library, Evidence Assistant, Claim Ledger, and Contradiction Radar are active. Next phase implements Research Briefs and Trust Dashboard.
+                    </p>
+                  </div>
+                )}
             </>
           )}
         </main>
