@@ -1,5 +1,6 @@
-import psycopg
 import sys
+sys.stdout.reconfigure(encoding='utf-8')
+import psycopg
 
 def main():
     print("Testing pgvector in PostgreSQL database 'prooflens'...")
@@ -22,6 +23,23 @@ def main():
             cur.execute("SELECT '[1,2,3]'::vector <=> '[1,2,4]'::vector AS cosine_dist;")
             dist = cur.fetchone()[0]
             print(f"✅ Vector distance calculation verified (sample distance: {dist})")
+
+            # Ensure document_chunks table embedding column is migrated to vector(768)
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'document_chunks' 
+                        AND column_name = 'embedding' 
+                        AND data_type = 'json'
+                    ) THEN
+                        ALTER TABLE document_chunks ALTER COLUMN embedding TYPE vector(768) USING (embedding::text)::vector;
+                    END IF;
+                END $$;
+            """)
+            conn.commit()
+            print("✅ document_chunks table schema verified for pgvector storage")
 
         conn.close()
         print("\n🎉 pgvector is 100% functional and ready in database 'prooflens'!")
