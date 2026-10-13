@@ -8,6 +8,8 @@ import { EvidenceAssistant } from "@/components/evidence-assistant";
 import { EvidenceInspector } from "@/components/evidence-inspector";
 import { ClaimLedger } from "@/components/claim-ledger";
 import { ContradictionRadar } from "@/components/contradiction-radar";
+import { ResearchBrief } from "@/components/research-brief";
+import { EvaluationDashboard } from "@/components/evaluation-dashboard";
 import { api } from "@/lib/api";
 import {
   Workspace,
@@ -16,6 +18,8 @@ import {
   GroundedAnswerResponse,
   ClaimAssessmentResponse,
   ContradictionResponse,
+  ResearchBriefResponse,
+  EvaluationSummaryResponse,
 } from "@/lib/types";
 import { Plus, X, Loader2, AlertCircle } from "lucide-react";
 
@@ -58,6 +62,39 @@ export default function Home() {
   ): Promise<ContradictionResponse> => {
     if (!currentWorkspace) throw new Error("No active workspace selected.");
     return api.compareDocuments(currentWorkspace.id, docIds, topic);
+  };
+
+  // Research Brief handler
+  const handleGenerateBrief = async (topic: string): Promise<ResearchBriefResponse> => {
+    if (!currentWorkspace) throw new Error("No active workspace selected.");
+    return api.generateBrief(
+      currentWorkspace.id,
+      topic,
+      selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
+    );
+  };
+
+  const handleDownloadMarkdown = async (briefId: string, filename: string): Promise<void> => {
+    if (!currentWorkspace) return;
+    const md = await api.exportBriefMarkdown(currentWorkspace.id, briefId);
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Evaluation handlers
+  const handleLoadEvaluationSummary = async (): Promise<EvaluationSummaryResponse> => {
+    return api.getEvaluationSummary();
+  };
+
+  const handleRunEvaluation = async (): Promise<EvaluationSummaryResponse> => {
+    return api.runEvaluation();
   };
 
   // New Workspace Modal
@@ -251,22 +288,21 @@ export default function Home() {
                 />
               )}
 
-              {currentTab !== "documents" &&
-                currentTab !== "assistant" &&
-                currentTab !== "claims" &&
-                currentTab !== "radar" && (
-                  <div className="p-8 max-w-[1200px] mx-auto text-center flex flex-col items-center justify-center min-h-[500px] gap-3">
-                    <div className="p-4 rounded-full bg-surface-muted text-primary">
-                      <AlertCircle className="w-8 h-8" />
-                    </div>
-                    <h3 className="text-base font-semibold text-foreground">
-                      Tab Under Construction (Next Phase)
-                    </h3>
-                    <p className="text-xs text-muted-foreground max-w-md">
-                      You are in Phase 4. Document Library, Evidence Assistant, Claim Ledger, and Contradiction Radar are active. Next phase implements Research Briefs and Trust Dashboard.
-                    </p>
-                  </div>
-                )}
+              {currentTab === "briefs" && (
+                <ResearchBrief
+                  documents={documents}
+                  selectedDocumentIds={selectedDocumentIds}
+                  onGenerateBrief={handleGenerateBrief}
+                  onDownloadMarkdown={handleDownloadMarkdown}
+                />
+              )}
+
+              {currentTab === "evaluation" && (
+                <EvaluationDashboard
+                  onLoadSummary={handleLoadEvaluationSummary}
+                  onRunEvaluation={handleRunEvaluation}
+                />
+              )}
             </>
           )}
         </main>
