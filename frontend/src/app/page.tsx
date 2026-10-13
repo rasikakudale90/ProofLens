@@ -4,8 +4,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Sidebar, NavTab } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import { DocumentLibrary } from "@/components/document-library";
+import { EvidenceAssistant } from "@/components/evidence-assistant";
+import { EvidenceInspector } from "@/components/evidence-inspector";
 import { api } from "@/lib/api";
-import { Workspace, DocumentItem } from "@/lib/types";
+import { Workspace, DocumentItem, CitationItem, GroundedAnswerResponse } from "@/lib/types";
 import { Plus, X, Loader2, AlertCircle } from "lucide-react";
 
 export default function Home() {
@@ -18,6 +20,17 @@ export default function Home() {
   const [backendOnline, setBackendOnline] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
+  const [activeCitation, setActiveCitation] = useState<CitationItem | null>(null);
+
+  // Ask Question handler
+  const handleAskQuestion = async (question: string): Promise<GroundedAnswerResponse> => {
+    if (!currentWorkspace) throw new Error("No active workspace selected.");
+    return api.askQuestion(
+      currentWorkspace.id,
+      question,
+      selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
+    );
+  };
 
   // New Workspace Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -176,7 +189,26 @@ export default function Home() {
                 />
               )}
 
-              {currentTab !== "documents" && (
+              {currentTab === "assistant" && (
+                <div className="flex h-full w-full overflow-hidden">
+                  <div className="flex-1 overflow-y-auto">
+                    <EvidenceAssistant
+                      documents={documents}
+                      selectedDocumentIds={selectedDocumentIds}
+                      onAsk={handleAskQuestion}
+                      onSelectCitation={setActiveCitation}
+                      activeCitation={activeCitation}
+                    />
+                  </div>
+                  <EvidenceInspector
+                    activeCitation={activeCitation}
+                    activeEvidence={null}
+                    onClose={() => setActiveCitation(null)}
+                  />
+                </div>
+              )}
+
+              {currentTab !== "documents" && currentTab !== "assistant" && (
                 <div className="p-8 max-w-[1200px] mx-auto text-center flex flex-col items-center justify-center min-h-[500px] gap-3">
                   <div className="p-4 rounded-full bg-surface-muted text-primary">
                     <AlertCircle className="w-8 h-8" />
@@ -185,7 +217,7 @@ export default function Home() {
                     Tab Under Construction (Next Phase)
                   </h3>
                   <p className="text-xs text-muted-foreground max-w-md">
-                    You are in Phase 2. The Document Library and Application Shell are active. Next phase implements the Evidence Assistant and Evidence Inspector.
+                    You are in Phase 3. The Document Library, Evidence Assistant, and Evidence Inspector are active. Next phase implements Claim Ledger and Contradiction Radar.
                   </p>
                 </div>
               )}
