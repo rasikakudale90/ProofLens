@@ -9,7 +9,7 @@ export interface DocumentItem {
   workspace_id: string;
   filename: string;
   size_bytes: number;
-  status: "processing" | "ready" | "failed";
+  status: "uploaded" | "processing" | "ready" | "failed" | string;
   page_count?: number | null;
   checksum?: string | null;
   error_code?: string | null;
@@ -36,74 +36,93 @@ export interface RetrievedEvidenceItem {
 }
 
 export interface CitationItem {
-  citation_order: number;
+  citation_id: string;
   document_id: string;
   document_name: string;
   page_number: number;
   chunk_id: string;
   excerpt: string;
+  citation_order?: number;
 }
 
 export interface GroundedAnswerResponse {
+  query_id: string;
+  status: "answered" | "insufficient_evidence" | "supported" | "partially_supported" | string;
   answer: string;
-  status: "supported" | "partially_supported" | "insufficient_evidence";
   citations: CitationItem[];
   limitations: string[];
-  query_run_id: string;
+  model_metadata?: Record<string, unknown>;
 }
 
 export interface ClaimAssessmentItem {
-  claim: string;
+  claim_id: string;
+  claim_text: string;
   status: "supported" | "partially_supported" | "contradicted" | "insufficient_evidence";
-  evidence_excerpts: string[];
-  source_references: string[];
-  uncertainty_notes?: string | null;
+  rationale: string;
+  citations: CitationItem[];
+  limitations: string[];
 }
 
 export interface ClaimAssessmentResponse {
   workspace_id: string;
   total_claims: number;
-  assessments: ClaimAssessmentItem[];
+  claims: ClaimAssessmentItem[];
 }
 
-export interface ContradictionItem {
-  topic: string;
-  status: "contradicted" | "potential_disagreement" | "compatible";
-  doc_a_claim: string;
-  doc_a_citation: string;
-  doc_b_claim: string;
-  doc_b_citation: string;
-  differences_context?: string | null;
+export interface DocumentFinding {
+  document_id: string;
+  document_name: string;
+  finding: string;
+  citations: CitationItem[];
 }
 
-export interface ContradictionResponse {
+export interface CompareResponse {
+  comparison_id: string;
   workspace_id: string;
-  topics_compared: number;
-  contradictions: ContradictionItem[];
+  topic: string;
+  relationship: "agreement" | "difference" | "apparent_contradiction" | "inconclusive";
+  summary: string;
+  document_findings: DocumentFinding[];
+  limitations: string[];
+}
+
+export type ContradictionResponse = CompareResponse;
+
+export interface BriefFinding {
+  statement: string;
+  citations: CitationItem[];
 }
 
 export interface ResearchBriefResponse {
   brief_id: string;
   workspace_id: string;
-  title: string;
+  topic: string;
   executive_summary: string;
-  key_findings: string[];
-  discrepancies: string[];
+  key_findings: BriefFinding[];
+  disagreements: string[];
   limitations: string[];
-  markdown?: string;
+  markdown_content: string;
 }
 
-export interface EvaluationMetrics {
-  retrieval_hit_rate: number;
-  citation_validity: number;
-  abstention_correctness: number;
-  p95_latency_ms: number;
-  error_rate?: number;
+export interface EvaluationResultItem {
+  case_id: string;
+  question: string;
+  expected_behaviour: string;
+  actual_status: string;
+  passed: boolean;
+  latency_ms: number;
+  notes: string;
 }
 
 export interface EvaluationSummaryResponse {
-  run_id?: string;
+  run_id: string;
   sample_count: number;
-  metrics: EvaluationMetrics;
+  retrieval_hit_rate: number;
+  citation_validity_rate: number;
+  abstention_success_rate: number;
+  average_latency_ms: number;
+  provider_error_count?: number;
+  results: EvaluationResultItem[];
   created_at?: string;
 }
+

@@ -57,7 +57,7 @@ export function ClaimLedger({
     setError(null);
     try {
       const res = await onAssess(validClaims);
-      setAssessmentResults(res.assessments);
+      setAssessmentResults(res.claims || []);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to assess claims";
       setError(msg);
@@ -182,18 +182,18 @@ export function ClaimLedger({
                   <th className="py-3 px-4">Claim Proposition</th>
                   <th className="py-3 px-4 w-44">Status Assessment</th>
                   <th className="py-3 px-4 w-32">Sources</th>
-                  <th className="py-3 px-4">Uncertainty & Nuance</th>
+                  <th className="py-3 px-4">Rationale & Nuance</th>
                   <th className="py-3 px-4 w-28 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {assessmentResults.map((item, index) => (
-                  <tr key={index} className="hover:bg-surface-muted/50 transition-colors">
+                  <tr key={item.claim_id || index} className="hover:bg-surface-muted/50 transition-colors">
                     <td className="py-3.5 px-4 text-center font-mono text-muted-foreground">
                       {index + 1}
                     </td>
                     <td className="py-3.5 px-4 font-medium text-foreground max-w-[320px]">
-                      {item.claim}
+                      {item.claim_text}
                     </td>
                     <td className="py-3.5 px-4">
                       {item.status === "supported" && (
@@ -222,10 +222,10 @@ export function ClaimLedger({
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-muted-foreground font-mono">
-                      {item.source_references?.length ?? 0} passage(s)
+                      {item.citations?.length ?? 0} passage(s)
                     </td>
-                    <td className="py-3.5 px-4 text-muted-foreground text-[11px] italic">
-                      {item.uncertainty_notes || "None noted"}
+                    <td className="py-3.5 px-4 text-muted-foreground text-[11px]">
+                      {item.rationale || "None noted"}
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <button
@@ -265,22 +265,38 @@ export function ClaimLedger({
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
                   Evaluated Proposition
                 </span>
-                <p className="text-xs font-medium text-foreground">{activeInspectClaim.claim}</p>
+                <p className="text-xs font-medium text-foreground">{activeInspectClaim.claim_text}</p>
+              </div>
+
+              <div>
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold block mb-1">
+                  Audit Rationale
+                </span>
+                <p className="text-xs text-muted-foreground leading-relaxed bg-surface-muted/50 p-3 rounded-[7px] border border-border">
+                  {activeInspectClaim.rationale}
+                </p>
               </div>
 
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold block mb-2">
-                  Retrieved Source Passages ({activeInspectClaim.evidence_excerpts?.length || 0})
+                  Retrieved Source Passages ({activeInspectClaim.citations?.length || 0})
                 </span>
-                {activeInspectClaim.evidence_excerpts && activeInspectClaim.evidence_excerpts.length > 0 ? (
+                {activeInspectClaim.citations && activeInspectClaim.citations.length > 0 ? (
                   <div className="space-y-2.5">
-                    {activeInspectClaim.evidence_excerpts.map((excerpt, idx) => (
-                      <blockquote
-                        key={idx}
-                        className="p-3 rounded-[7px] bg-accent/15 border-l-2 border-primary text-xs leading-relaxed text-foreground italic font-serif"
+                    {activeInspectClaim.citations.map((c, idx) => (
+                      <div
+                        key={c.citation_id || idx}
+                        className="p-3 rounded-[7px] bg-accent/15 border-l-2 border-primary text-xs leading-relaxed text-foreground flex flex-col gap-1.5"
                       >
-                        &ldquo;{excerpt}&rdquo;
-                      </blockquote>
+                        <blockquote className="italic font-serif">
+                          &ldquo;{c.excerpt}&rdquo;
+                        </blockquote>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium pt-1 border-t border-border/50">
+                          <span>{c.document_name}</span>
+                          <span>&bull;</span>
+                          <span>Page {c.page_number}</span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -290,10 +306,14 @@ export function ClaimLedger({
                 )}
               </div>
 
-              {activeInspectClaim.uncertainty_notes && (
+              {activeInspectClaim.limitations && activeInspectClaim.limitations.length > 0 && (
                 <div className="p-3 rounded-[7px] bg-warning-soft/30 border border-warning/30 text-xs text-warning">
-                  <span className="font-semibold block mb-0.5">Uncertainty & Scope Notes:</span>
-                  <p className="text-[11px]">{activeInspectClaim.uncertainty_notes}</p>
+                  <span className="font-semibold block mb-0.5">Audit Limitations & Caveats:</span>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    {activeInspectClaim.limitations.map((lim, i) => (
+                      <li key={i}>{lim}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

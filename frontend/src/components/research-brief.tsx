@@ -55,7 +55,7 @@ export function ResearchBrief({
 
   const handleDownload = async () => {
     if (!brief) return;
-    const filename = `${brief.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-brief.md`;
+    const filename = `${(brief.topic || "research").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-brief.md`;
     await onDownloadMarkdown(brief.brief_id, filename);
   };
 
@@ -158,7 +158,7 @@ export function ResearchBrief({
               ProofLens Executive Research Brief
             </span>
             <h1 className="text-xl font-bold text-foreground mt-1 tracking-tight font-serif">
-              {brief.title}
+              {brief.topic}
             </h1>
           </div>
 
@@ -178,14 +178,28 @@ export function ResearchBrief({
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Key Findings & Supporting Evidence
               </h2>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {brief.key_findings.map((f, i) => (
                   <li
                     key={i}
-                    className="p-3 rounded-[7px] bg-accent/15 border-l-2 border-primary text-xs leading-relaxed text-foreground flex items-start gap-2"
+                    className="p-3.5 rounded-[7px] bg-accent/15 border-l-2 border-primary text-xs leading-relaxed text-foreground flex flex-col gap-1.5"
                   >
-                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>{f}</span>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                      <span className="font-medium">{f.statement}</span>
+                    </div>
+                    {f.citations && f.citations.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pl-6 pt-1">
+                        {f.citations.map((c, cIdx) => (
+                          <span
+                            key={c.citation_id || cIdx}
+                            className="px-2 py-0.5 rounded text-[10px] bg-surface-muted text-muted-foreground border border-border"
+                          >
+                            {c.document_name} (p. {c.page_number})
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -193,13 +207,13 @@ export function ResearchBrief({
           )}
 
           {/* Discrepancies & Disagreements */}
-          {brief.discrepancies && brief.discrepancies.length > 0 && (
+          {brief.disagreements && brief.disagreements.length > 0 && (
             <div className="flex flex-col gap-2">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Observed Discrepancies & Divergences
               </h2>
               <ul className="space-y-2">
-                {brief.discrepancies.map((d, i) => (
+                {brief.disagreements.map((d, i) => (
                   <li
                     key={i}
                     className="p-3 rounded-[7px] bg-warning-soft/30 border border-warning/30 text-xs leading-relaxed text-foreground flex items-start gap-2"

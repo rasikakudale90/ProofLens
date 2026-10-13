@@ -90,7 +90,7 @@ export default function Home() {
   };
 
   // Evaluation handlers
-  const handleLoadEvaluationSummary = async (): Promise<EvaluationSummaryResponse> => {
+  const handleLoadEvaluationSummary = async (): Promise<EvaluationSummaryResponse | null> => {
     return api.getEvaluationSummary();
   };
 

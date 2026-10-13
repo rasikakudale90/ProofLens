@@ -200,8 +200,12 @@ class ApiClient {
   }
 
   // Trust & Evaluation
-  async getEvaluationSummary(): Promise<EvaluationSummaryResponse> {
-    return this.request("/api/v1/evaluation/summary");
+  async getEvaluationSummary(): Promise<EvaluationSummaryResponse | null> {
+    try {
+      return await this.request<EvaluationSummaryResponse>("/api/v1/evaluation/summary");
+    } catch {
+      return null;
+    }
   }
 
   async runEvaluation(): Promise<EvaluationSummaryResponse> {
@@ -210,5 +214,6 @@ class ApiClient {
     });
   }
 }
+
 
 export const api = new ApiClient();

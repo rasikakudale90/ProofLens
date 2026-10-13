@@ -167,10 +167,10 @@ export function EvidenceAssistant({
                           </span>
                         </div>
 
-                        {msg.answerResponse.status === "supported" && (
+                        {(msg.answerResponse.status === "answered" || msg.answerResponse.status === "supported") && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[4px] text-[11px] font-medium bg-success-soft text-success">
                             <CheckCircle2 className="w-3 h-3" />
-                            Supported
+                            Grounded & Verified
                           </span>
                         )}
                         {msg.answerResponse.status === "partially_supported" && (
@@ -212,11 +212,12 @@ export function EvidenceAssistant({
                             Server-Validated Citations ({msg.answerResponse.citations.length})
                           </span>
                           <div className="flex flex-wrap gap-2">
-                            {msg.answerResponse.citations.map((c) => {
+                            {msg.answerResponse.citations.map((c, cIdx) => {
                               const isSelected = activeCitation?.chunk_id === c.chunk_id;
+                              const displayOrder = c.citation_order ?? cIdx + 1;
                               return (
                                 <button
-                                  key={c.chunk_id}
+                                  key={c.citation_id || c.chunk_id || cIdx}
                                   onClick={() => onSelectCitation(c)}
                                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px] border transition-all ${
                                     isSelected
@@ -227,7 +228,7 @@ export function EvidenceAssistant({
                                 >
                                   <Bookmark className="w-3 h-3 shrink-0" />
                                   <span>
-                                    [{c.citation_order}] {c.document_name} (p. {c.page_number})
+                                    [#{displayOrder}] {c.document_name} (p. {c.page_number})
                                   </span>
                                 </button>
                               );

@@ -1,5 +1,6 @@
 import math
-from typing import List, Optional
+import re
+from typing import List, Optional, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -9,6 +10,61 @@ from app.db.models import Workspace, Document, DocumentChunk
 from app.providers.base import AIProvider
 from app.providers.gemini import get_ai_provider
 from app.schemas.evidence import RetrievedEvidenceItem
+
+STOPWORDS: Set[str] = {
+    "a", "an", "the", "and", "or", "in", "on", "at", "to", "for", "of", "with",
+    "by", "from", "up", "into", "over", "after", "is", "are", "was",
+    "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "what", "who", "which", "where", "when", "why", "how", "can", "could", "should",
+    "would", "will", "this", "that", "these", "those", "it", "its", "i", "you", "he", "she",
+    "me", "my", "we", "our", "us", "they", "them", "their", "please"
+}
+
+GENERIC_QUERY_INDICATORS = [
+    "what is this", "what is the document", "what is this pdf", "summarize",
+    "summary", "overview", "who is", "about this", "tell me about",
+    "main points", "key points", "what does this document say", "what does this file",
+    "describe", "give me", "brief overview", "outline", "background", "what is this about",
+    "explain this", "what's this", "whats this"
+]
+
+
+def is_generic_query(question: str) -> bool:
+    q_norm = question.strip().lower()
+    for ind in GENERIC_QUERY_INDICATORS:
+        if ind in q_norm:
+            return True
+    return False
+
+
+def extract_keywords(text_str: str) -> List[str]:
+    words = re.findall(r"\b[a-zA-Z0-9_\-\.]{2,}\b", text_str.lower())
+    return [w for w in words if w not in STOPWORDS]
+
+
+def compute_lexical_score(query: str, chunk_text: str) -> float:
+    chunk_lower = chunk_text.lower()
+    q_lower = query.strip().lower()
+    keywords = extract_keywords(query)
+    if not keywords:
+        return 0.5 if is_generic_query(query) else 0.0
+
+    score = 0.0
+    # Exact multi-word phrase boost
+    if len(keywords) >= 2 and q_lower in chunk_lower:
+        score += 0.5
+
+    matched_keywords = 0
+    for kw in keywords:
+        stem = kw.rstrip("s") if len(kw) > 3 else kw
+        if kw in chunk_lower or (len(stem) >= 3 and stem in chunk_lower):
+            matched_keywords += 1
+            count = chunk_lower.count(stem)
+            score += min(0.25, 0.05 * count)
+
+    keyword_coverage = matched_keywords / len(keywords)
+    score += keyword_coverage * 0.5
+    return min(1.0, score)
 
 
 def cosine_similarity(v1: List[float], v2: List[float]) -> float:
@@ -49,15 +105,15 @@ def retrieve_evidence(
         # No ready documents in scope
         return []
 
-    # 3. Embed Query
+    is_generic = is_generic_query(question)
+
+    # 3. Embed Query (if real provider is configured)
     provider = ai_provider or get_ai_provider()
     query_vector = provider.embed_text(question)
 
     # 4. Query Chunks
-    # If using PostgreSQL with pgvector enabled
-    if db.bind and db.bind.dialect.name == "postgresql" and settings.USE_PGVECTOR:
-        # Using pgvector cosine distance: <=> operator
-        # similarity = 1 - (embedding <=> query_vector)
+    # If using PostgreSQL with pgvector enabled AND Gemini API key configured
+    if db.bind and db.bind.dialect.name == "postgresql" and settings.USE_PGVECTOR and settings.GEMINI_API_KEY:
         stmt = text("""
             SELECT 
                 c.id AS chunk_id,
@@ -74,7 +130,6 @@ def retrieve_evidence(
             ORDER BY c.embedding <=> :qvec ASC
             LIMIT :limit
         """)
-        # We can run pgvector query or fallback
         try:
             res = db.execute(
                 stmt,
@@ -88,7 +143,7 @@ def retrieve_evidence(
             items: List[RetrievedEvidenceItem] = []
             for row in res:
                 sim = float(row.similarity)
-                if similarity_threshold is not None and sim < similarity_threshold:
+                if not is_generic and similarity_threshold is not None and sim < similarity_threshold:
                     continue
                 items.append(
                     RetrievedEvidenceItem(
@@ -101,27 +156,44 @@ def retrieve_evidence(
                         similarity=round(sim, 4),
                     )
                 )
-            return items
+            if items:
+                return items
         except Exception:
             db.rollback()
-            pass  # Fallback to in-python similarity if pgvector extension or query fails
 
-    # Universal / SQLite Fallback: Retrieve scoped chunks and rank in memory
+    # Universal Hybrid Retrieval: Retrieve scoped chunks and rank with hybrid lexical/semantic scoring
     chunk_query = db.query(DocumentChunk).filter(DocumentChunk.document_id.in_(ready_docs.keys()))
     all_chunks = chunk_query.all()
 
     scored_chunks = []
-    for chunk in all_chunks:
-        if not chunk.embedding:
-            continue
-        # chunk.embedding can be a list or vector
-        emb_list = list(chunk.embedding) if hasattr(chunk.embedding, "__iter__") else []
-        sim = cosine_similarity(query_vector, emb_list)
-        if settings.GEMINI_API_KEY and similarity_threshold is not None and sim < similarity_threshold:
-            continue
-        scored_chunks.append((sim if sim > 0 else 0.5, chunk))
+    has_real_embeddings = bool(settings.GEMINI_API_KEY)
 
-    # Sort descending by similarity
+    for chunk in all_chunks:
+        lexical = compute_lexical_score(question, chunk.text)
+        
+        if is_generic:
+            # For generic queries, prioritize introductory and early chunks of each document
+            position_bias = max(0.1, 0.9 - (chunk.chunk_index * 0.05))
+            score = max(0.65, position_bias)
+        elif has_real_embeddings and chunk.embedding:
+            emb_list = list(chunk.embedding) if hasattr(chunk.embedding, "__iter__") else []
+            cosine_sim = cosine_similarity(query_vector, emb_list)
+            score = (0.6 * cosine_sim) + (0.4 * lexical)
+        else:
+            score = lexical
+
+        # Filtering threshold for specific queries
+        if not is_generic and has_real_embeddings and similarity_threshold is not None:
+            if score < similarity_threshold:
+                continue
+        elif not is_generic and not has_real_embeddings:
+            # In offline mode, if there are no matching keywords at all, exclude it
+            if score <= 0.05:
+                continue
+
+        scored_chunks.append((score, chunk))
+
+    # Sort descending by score
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
     top_chunks = scored_chunks[:top_k]
 
@@ -137,3 +209,4 @@ def retrieve_evidence(
         )
         for score, chunk in top_chunks
     ]
+

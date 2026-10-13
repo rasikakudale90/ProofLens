@@ -7,11 +7,13 @@ import {
   Play,
   Loader2,
   Info,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { EvaluationSummaryResponse } from "@/lib/types";
 
 interface EvaluationDashboardProps {
-  onLoadSummary: () => Promise<EvaluationSummaryResponse>;
+  onLoadSummary: () => Promise<EvaluationSummaryResponse | null>;
   onRunEvaluation: () => Promise<EvaluationSummaryResponse>;
 }
 
@@ -28,7 +30,7 @@ export function EvaluationDashboard({
     const fetchSummary = async () => {
       try {
         const res = await onLoadSummary();
-        if (mounted) setData(res);
+        if (mounted && res) setData(res);
       } catch (err: unknown) {
         console.warn("No evaluation runs yet:", err);
       }
@@ -53,8 +55,6 @@ export function EvaluationDashboard({
     }
   };
 
-  const metrics = data?.metrics;
-
   return (
     <div className="flex flex-col gap-6 p-6 max-w-[1200px] mx-auto w-full">
       {/* Header */}
@@ -65,7 +65,7 @@ export function EvaluationDashboard({
             Trust & Quality Evaluation Suite
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Real automated benchmark auditing retrieval hit rate, citation validity, and abstention correctness.
+            Automated empirical audit measuring retrieval precision, citation validity, and hallucination abstention.
           </p>
         </div>
         <button
@@ -107,7 +107,7 @@ export function EvaluationDashboard({
             </span>
           </div>
           <div className="text-2xl font-bold font-mono text-foreground mt-1">
-            {metrics ? `${(metrics.retrieval_hit_rate * 100).toFixed(1)}%` : "—"}
+            {data ? `${data.retrieval_hit_rate.toFixed(1)}%` : "—"}
           </div>
           <span className="text-[11px] text-muted-foreground">
             Top-5 retrieved chunks contain required ground-truth evidence passages.
@@ -125,7 +125,7 @@ export function EvaluationDashboard({
             </span>
           </div>
           <div className="text-2xl font-bold font-mono text-foreground mt-1">
-            {metrics ? `${(metrics.citation_validity * 100).toFixed(1)}%` : "—"}
+            {data ? `${data.citation_validity_rate.toFixed(1)}%` : "—"}
           </div>
           <span className="text-[11px] text-muted-foreground">
             Citations mapped strictly to retrieved evidence; hallucinated references stripped.
@@ -143,31 +143,90 @@ export function EvaluationDashboard({
             </span>
           </div>
           <div className="text-2xl font-bold font-mono text-foreground mt-1">
-            {metrics ? `${(metrics.abstention_correctness * 100).toFixed(1)}%` : "—"}
+            {data ? `${data.abstention_success_rate.toFixed(1)}%` : "—"}
           </div>
           <span className="text-[11px] text-muted-foreground">
             Correctly returns insufficient_evidence when query is unsubstantiated.
           </span>
         </div>
 
-        {/* Metric 4: P95 Latency */}
+        {/* Metric 4: Average Latency */}
         <div className="bg-surface border border-border rounded-[10px] p-5 shadow-xs flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-              P95 Latency
+              Avg Latency
             </span>
             <span className="text-[10px] text-muted-foreground font-medium bg-surface-muted px-1.5 py-0.5 rounded-[4px]">
               Target: &le; 5000ms
             </span>
           </div>
           <div className="text-2xl font-bold font-mono text-foreground mt-1">
-            {metrics ? `${metrics.p95_latency_ms.toFixed(0)} ms` : "—"}
+            {data ? `${data.average_latency_ms.toFixed(0)} ms` : "—"}
           </div>
           <span className="text-[11px] text-muted-foreground">
             End-to-end vector retrieval, LLM synthesis, and citation validation latency.
           </span>
         </div>
       </div>
+
+      {/* Benchmark Results Table (if run executed) */}
+      {data && data.results && data.results.length > 0 && (
+        <div className="bg-surface border border-border rounded-[10px] shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-border bg-surface-muted/40 flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-foreground">
+              Audit Case Logs ({data.results.length} Test Cases)
+            </h3>
+            <span className="text-[11px] text-muted-foreground font-mono">
+              Run ID: {data.run_id.slice(0, 8)}...
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border bg-surface text-muted-foreground font-semibold">
+                  <th className="py-3 px-4 w-12 text-center">Result</th>
+                  <th className="py-3 px-4">Evaluation Query</th>
+                  <th className="py-3 px-4 w-36">Expected Behaviour</th>
+                  <th className="py-3 px-4 w-32">Actual Status</th>
+                  <th className="py-3 px-4 w-28">Latency</th>
+                  <th className="py-3 px-4">Audit Provenance Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {data.results.map((r) => (
+                  <tr key={r.case_id} className="hover:bg-surface-muted/50 transition-colors">
+                    <td className="py-3 px-4 text-center">
+                      {r.passed ? (
+                        <CheckCircle2 className="w-4 h-4 text-success inline-block" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-danger inline-block" />
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-foreground">
+                      {r.question}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-muted-foreground">
+                      {r.expected_behaviour}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[11px]">
+                      <span className={r.passed ? "text-success font-medium" : "text-danger font-medium"}>
+                        {r.actual_status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
+                      {r.latency_ms.toFixed(1)} ms
+                    </td>
+                    <td className="py-3 px-4 text-muted-foreground text-[11px]">
+                      {r.notes}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Audit Provenance Card */}
       <div className="bg-surface border border-border rounded-[10px] p-5 shadow-xs flex flex-col gap-3">
@@ -187,7 +246,7 @@ export function EvaluationDashboard({
         <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground pt-2 border-t border-border">
           <span>
             Total Benchmark Cases:{" "}
-            <strong className="text-foreground font-mono">{data?.sample_count ?? 5}</strong>
+            <strong className="text-foreground font-mono">{data?.sample_count ?? 3}</strong>
           </span>
           {data?.created_at && (
             <span>
@@ -208,3 +267,4 @@ export function EvaluationDashboard({
     </div>
   );
 }
+

@@ -9,7 +9,13 @@ import {
   Loader2,
   Info,
 } from "lucide-react";
-import { DocumentItem, ContradictionItem, ContradictionResponse } from "@/lib/types";
+import {
+  DocumentItem,
+  CompareResponse,
+  ContradictionResponse,
+  DocumentFinding,
+  CitationItem,
+} from "@/lib/types";
 
 interface ContradictionRadarProps {
   documents: DocumentItem[];
@@ -20,7 +26,7 @@ export function ContradictionRadar({ documents, onCompare }: ContradictionRadarP
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [topic, setTopic] = useState("");
   const [isComparing, setIsComparing] = useState(false);
-  const [results, setResults] = useState<ContradictionItem[]>([]);
+  const [comparisonResult, setComparisonResult] = useState<CompareResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const toggleDoc = (id: string) => {
@@ -44,7 +50,7 @@ export function ContradictionRadar({ documents, onCompare }: ContradictionRadarP
     setError(null);
     try {
       const res = await onCompare(selectedDocIds, topic.trim());
-      setResults(res.contradictions);
+      setComparisonResult(res);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Comparison failed";
       setError(msg);
@@ -153,83 +159,108 @@ export function ContradictionRadar({ documents, onCompare }: ContradictionRadarP
       </form>
 
       {/* Comparison Results */}
-      {results.length > 0 && (
-        <div className="flex flex-col gap-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Detected Topics & Discrepancy Analysis ({results.length})
-          </h3>
-
-          <div className="space-y-4">
-            {results.map((item, idx) => (
-              <div
-                key={idx}
-                className="bg-surface border border-border rounded-[10px] p-5 shadow-xs flex flex-col gap-4"
-              >
-                {/* Topic Header & Status */}
-                <div className="flex items-center justify-between pb-3 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-foreground">
-                      Topic: {item.topic}
-                    </span>
-                  </div>
-
-                  {item.status === "contradicted" && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-medium bg-danger-soft text-danger">
-                      <XCircle className="w-3.5 h-3.5" />
-                      Direct Contradiction
-                    </span>
-                  )}
-                  {item.status === "potential_disagreement" && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-medium bg-warning-soft text-warning">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      Potential Disagreement
-                    </span>
-                  )}
-                  {item.status === "compatible" && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-medium bg-success-soft text-success">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Compatible Evidence
-                    </span>
-                  )}
-                </div>
-
-                {/* Side-by-Side Dual Source Panels */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Doc A */}
-                  <div className="p-3.5 rounded-[7px] bg-surface-muted border border-border flex flex-col gap-2">
-                    <span className="text-[11px] uppercase tracking-wider text-primary font-semibold">
-                      Source A Viewpoint
-                    </span>
-                    <p className="text-xs text-foreground font-medium">&ldquo;{item.doc_a_claim}&rdquo;</p>
-                    <span className="text-[11px] text-muted-foreground font-mono mt-auto pt-1 border-t border-border/50">
-                      Citation: {item.doc_a_citation}
-                    </span>
-                  </div>
-
-                  {/* Doc B */}
-                  <div className="p-3.5 rounded-[7px] bg-surface-muted border border-border flex flex-col gap-2">
-                    <span className="text-[11px] uppercase tracking-wider text-primary font-semibold">
-                      Source B Viewpoint
-                    </span>
-                    <p className="text-xs text-foreground font-medium">&ldquo;{item.doc_b_claim}&rdquo;</p>
-                    <span className="text-[11px] text-muted-foreground font-mono mt-auto pt-1 border-t border-border/50">
-                      Citation: {item.doc_b_citation}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Differences Context */}
-                {item.differences_context && (
-                  <div className="p-3 rounded-[7px] bg-accent/20 border border-accent/40 text-xs text-accent-foreground flex items-start gap-2">
-                    <Info className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-                    <div>
-                      <span className="font-semibold block mb-0.5">Contextual Differences & Nuances:</span>
-                      <p className="text-[11px] leading-relaxed">{item.differences_context}</p>
-                    </div>
-                  </div>
-                )}
+      {comparisonResult && (
+        <div className="flex flex-col gap-5">
+          <div className="bg-surface border border-border rounded-[10px] p-6 shadow-xs flex flex-col gap-4">
+            {/* Header & Status */}
+            <div className="flex flex-wrap items-center justify-between pb-3 border-b border-border gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-xs text-foreground">
+                  Compared Topic: <span className="text-primary">{comparisonResult.topic}</span>
+                </span>
               </div>
-            ))}
+
+              {comparisonResult.relationship === "apparent_contradiction" && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-semibold bg-danger-soft text-danger">
+                  <XCircle className="w-4 h-4" />
+                  Apparent Contradiction
+                </span>
+              )}
+              {comparisonResult.relationship === "difference" && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-semibold bg-warning-soft text-warning">
+                  <AlertTriangle className="w-4 h-4" />
+                  Methodological / Scope Difference
+                </span>
+              )}
+              {comparisonResult.relationship === "agreement" && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-semibold bg-success-soft text-success">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Evidence Agreement
+                </span>
+              )}
+              {comparisonResult.relationship === "inconclusive" && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-semibold bg-surface-muted text-muted-foreground border border-border">
+                  <Info className="w-4 h-4" />
+                  Inconclusive
+                </span>
+              )}
+            </div>
+
+            {/* Executive Summary */}
+            <div className="p-4 rounded-[7px] bg-surface-muted/60 border border-border">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
+                Cross-Document Synthesis
+              </span>
+              <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                {comparisonResult.summary}
+              </p>
+            </div>
+
+            {/* Side-by-Side Document Findings */}
+            <div className="pt-2">
+              <span className="text-xs font-semibold text-foreground block mb-3">
+                Document-Specific Findings ({comparisonResult.document_findings?.length || 0})
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {comparisonResult.document_findings?.map((f: DocumentFinding) => (
+                  <div
+                    key={f.document_id}
+                    className="p-4 rounded-[7px] bg-surface-muted border border-border flex flex-col gap-2.5"
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
+                      <span className="text-xs font-bold text-foreground truncate max-w-[240px]">
+                        {f.document_name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {f.citations?.length || 0} citation(s)
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-foreground leading-relaxed font-medium">
+                      {f.finding}
+                    </p>
+
+                    {f.citations && f.citations.length > 0 && (
+                      <div className="space-y-1.5 mt-auto pt-2 border-t border-border/50">
+                        {f.citations.map((c: CitationItem, cIdx: number) => (
+                          <div
+                            key={c.citation_id || cIdx}
+                            className="p-2 rounded-[5px] bg-background/80 border border-border text-[11px] text-muted-foreground italic font-serif"
+                          >
+                            &ldquo;{c.excerpt}&rdquo;
+                            <span className="block not-italic font-sans text-[10px] text-primary mt-1 font-medium">
+                              Page {c.page_number}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Limitations */}
+            {comparisonResult.limitations && comparisonResult.limitations.length > 0 && (
+              <div className="p-3 rounded-[7px] bg-warning-soft/20 border border-warning/30 text-xs text-warning mt-2">
+                <span className="font-semibold block mb-0.5">Comparison Caveats:</span>
+                <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                  {comparisonResult.limitations.map((lim: string, i: number) => (
+                    <li key={i}>{lim}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       )}
