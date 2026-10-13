@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.db.models import QueryRun, Answer, Citation
+from app.db.models import QueryRun, Answer, Citation, Conversation, ConversationMessage, utc_now
 from app.schemas.evidence import RetrievedEvidenceItem
 from app.schemas.answer import (
     AskRequest,
@@ -134,6 +134,15 @@ def generate_grounded_answer(
     start_time = time.time()
     provider = ai_provider or get_ai_provider()
 
+    # 0. Conversation Management
+    convo = _get_or_create_conversation(
+        db=db,
+        workspace_id=workspace_id,
+        conversation_id=payload.conversation_id,
+        user_id=payload.user_id,
+        first_question=payload.question,
+    )
+
     # 1. Retrieve Candidate Evidence
     evidence_items = retrieve_evidence(
         db=db,
@@ -165,6 +174,16 @@ def generate_grounded_answer(
             citations=[],
             limitations=[reason],
         )
+        _record_conversation_messages(
+            db=db,
+            conversation=convo,
+            question=payload.question,
+            answer_text=ans_text,
+            status="insufficient_evidence",
+            citations=[],
+            limitations=[reason],
+            model_metadata={"provider": "ProofLens Evidence Engine", "status": "abstained"},
+        )
         return AskResponse(
             query_id=query_id,
             status="insufficient_evidence",
@@ -172,6 +191,7 @@ def generate_grounded_answer(
             citations=[],
             limitations=[reason],
             model_metadata={"provider": "ProofLens Evidence Engine", "status": "abstained"},
+            conversation_id=convo.id,
         )
 
     # 3. Format Context for LLM
@@ -200,7 +220,6 @@ def generate_grounded_answer(
             logger.warning(f"Gemini generation call failed ({e}), falling back to local evidence synthesis.")
             llm_result = synthesize_local_grounded_answer(payload.question, evidence_items)
 
-
     # 5. Server-side Citation Validation
     validated_citations = validate_and_assemble_citations(
         suggested_chunk_ids=llm_result.cited_chunk_ids,
@@ -217,7 +236,7 @@ def generate_grounded_answer(
 
     latency_ms = (time.time() - start_time) * 1000
 
-    # 6. Persist to Database
+    # 6. Persist to Database (Q&A run record)
     _record_qa(
         db=db,
         workspace_id=workspace_id,
@@ -230,17 +249,115 @@ def generate_grounded_answer(
         limitations=final_limitations,
     )
 
+    meta = {
+        "provider": "google-gemini" if settings.GEMINI_API_KEY else "local-evidence-engine",
+        "model": settings.GEMINI_GENERATION_MODEL if settings.GEMINI_API_KEY else "rule-grounded-synthesis",
+    }
+
+    # 7. Persist to Conversation Messages Thread
+    _record_conversation_messages(
+        db=db,
+        conversation=convo,
+        question=payload.question,
+        answer_text=llm_result.answer,
+        status=final_status,
+        citations=validated_citations,
+        limitations=final_limitations,
+        model_metadata=meta,
+    )
+
     return AskResponse(
         query_id=query_id,
         status=final_status,
         answer=llm_result.answer,
         citations=validated_citations,
         limitations=final_limitations,
-        model_metadata={
-            "provider": "google-gemini",
-            "model": settings.GEMINI_GENERATION_MODEL,
-        },
+        model_metadata=meta,
+        conversation_id=convo.id,
     )
+
+
+def _get_or_create_conversation(
+    db: Session,
+    workspace_id: str,
+    conversation_id: Optional[str],
+    user_id: Optional[str],
+    first_question: str,
+) -> Conversation:
+    if conversation_id:
+        convo = (
+            db.query(Conversation)
+            .filter(Conversation.id == conversation_id, Conversation.workspace_id == workspace_id)
+            .first()
+        )
+        if convo:
+            return convo
+
+    # Auto-generate title from first question
+    cleaned = first_question.strip().replace("\n", " ")
+    title = cleaned[:57] + "..." if len(cleaned) > 60 else (cleaned or "New Conversation")
+
+    convo = Conversation(
+        workspace_id=workspace_id,
+        user_id=user_id,
+        title=title,
+    )
+    db.add(convo)
+    db.commit()
+    db.refresh(convo)
+    return convo
+
+
+def _record_conversation_messages(
+    db: Session,
+    conversation: Conversation,
+    question: str,
+    answer_text: str,
+    status: str,
+    citations: List[CitationItem],
+    limitations: List[str],
+    model_metadata: dict,
+):
+    try:
+        user_msg = ConversationMessage(
+            conversation_id=conversation.id,
+            role="user",
+            content=question,
+            status=None,
+            citations=[],
+            limitations=[],
+            model_metadata={},
+        )
+        db.add(user_msg)
+
+        cit_dicts = [
+            {
+                "citation_id": c.citation_id,
+                "document_id": c.document_id,
+                "document_name": c.document_name,
+                "page_number": c.page_number,
+                "chunk_id": c.chunk_id,
+                "excerpt": c.excerpt,
+            }
+            for c in citations
+        ]
+
+        assistant_msg = ConversationMessage(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=answer_text,
+            status=status,
+            citations=cit_dicts,
+            limitations=limitations,
+            model_metadata=model_metadata,
+        )
+        db.add(assistant_msg)
+
+        conversation.updated_at = utc_now()
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Could not persist conversation messages: {e}")
+        db.rollback()
 
 
 def _record_qa(
@@ -288,3 +405,4 @@ def _record_qa(
     except Exception as e:
         logger.warning(f"Could not persist Q&A record to DB: {e}")
         db.rollback()
+

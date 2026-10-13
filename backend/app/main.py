@@ -51,8 +51,15 @@ app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
+from app.db.init_db import init_db
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
 from app.api.routes import (
     health,
+    auth,
     workspaces,
     documents,
     retrieval,
@@ -61,14 +68,19 @@ from app.api.routes import (
     comparisons,
     briefs,
     evaluation,
+    users,
+    conversations,
 )
 
 # Routes
 app.include_router(health.router)
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(users.router, prefix=settings.API_V1_PREFIX)
 app.include_router(workspaces.router, prefix=settings.API_V1_PREFIX)
 app.include_router(documents.router, prefix=settings.API_V1_PREFIX)
 app.include_router(retrieval.router, prefix=settings.API_V1_PREFIX)
 app.include_router(answers.router, prefix=settings.API_V1_PREFIX)
+app.include_router(conversations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(claims.router, prefix=settings.API_V1_PREFIX)
 app.include_router(comparisons.router, prefix=settings.API_V1_PREFIX)
 app.include_router(briefs.router, prefix=settings.API_V1_PREFIX)

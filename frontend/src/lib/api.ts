@@ -1,9 +1,13 @@
 import {
   Workspace,
+  UserProfile,
+  AuthResponse,
   DocumentItem,
   DocumentUploadResponse,
   RetrievedEvidenceItem,
   GroundedAnswerResponse,
+  ConversationSummary,
+  ConversationDetail,
   ClaimAssessmentResponse,
   ContradictionResponse,
   ResearchBriefResponse,
@@ -17,9 +21,13 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.base}${endpoint}`;
-    const headers = {
-      ...(options?.headers || {}),
+    const token = typeof window !== "undefined" ? localStorage.getItem("prooflens_token") : null;
+    const headers: Record<string, string> = {
+      ...((options?.headers as Record<string, string>) || {}),
     };
+    if (token && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
     const res = await fetch(url, {
       ...options,
@@ -45,6 +53,55 @@ class ApiClient {
     return res.json();
   }
 
+  // Authentication
+  async login(payload: { email: string; password: string }): Promise<AuthResponse> {
+    const res = await this.request<AuthResponse>("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (typeof window !== "undefined" && res.access_token) {
+      localStorage.setItem("prooflens_token", res.access_token);
+      localStorage.setItem("prooflens_user_id", res.user.id);
+    }
+    return res;
+  }
+
+  async register(payload: {
+    name: string;
+    email: string;
+    password: string;
+    role?: string;
+    avatar_color?: string;
+  }): Promise<AuthResponse> {
+    const res = await this.request<AuthResponse>("/api/v1/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (typeof window !== "undefined" && res.access_token) {
+      localStorage.setItem("prooflens_token", res.access_token);
+      localStorage.setItem("prooflens_user_id", res.user.id);
+    }
+    return res;
+  }
+
+  async getMe(): Promise<UserProfile> {
+    return this.request<UserProfile>("/api/v1/auth/me");
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.request("/api/v1/auth/logout", { method: "POST" });
+    } catch {
+      // ignore network errors
+    }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("prooflens_token");
+      localStorage.removeItem("prooflens_user_id");
+    }
+  }
+
   // Health
   async getHealth(): Promise<{ status: string; app: string }> {
     return this.request("/health");
@@ -54,21 +111,86 @@ class ApiClient {
     return this.request("/ready");
   }
 
-  // Workspaces
-  async getWorkspaces(): Promise<Workspace[]> {
-    return this.request("/api/v1/workspaces");
+  // Users
+  async getUsers(): Promise<UserProfile[]> {
+    return this.request("/api/v1/users");
   }
 
-  async createWorkspace(name: string): Promise<Workspace> {
+  async createUser(payload: {
+    name: string;
+    email: string;
+    role?: string;
+    avatar_color?: string;
+  }): Promise<UserProfile> {
+    return this.request("/api/v1/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Workspaces
+  async getWorkspaces(userId?: string): Promise<Workspace[]> {
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    return this.request(`/api/v1/workspaces${qs}`);
+  }
+
+  async createWorkspace(name: string, userId?: string): Promise<Workspace> {
     return this.request("/api/v1/workspaces", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, user_id: userId }),
     });
   }
 
   async deleteWorkspace(workspaceId: string): Promise<{ message: string }> {
     return this.request(`/api/v1/workspaces/${workspaceId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Conversations
+  async getConversations(workspaceId: string, userId?: string): Promise<ConversationSummary[]> {
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    return this.request(`/api/v1/workspaces/${workspaceId}/conversations${qs}`);
+  }
+
+  async createConversation(
+    workspaceId: string,
+    title?: string,
+    userId?: string
+  ): Promise<ConversationDetail> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/conversations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title || "New Conversation", user_id: userId }),
+    });
+  }
+
+  async getConversation(
+    workspaceId: string,
+    conversationId: string
+  ): Promise<ConversationDetail> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/conversations/${conversationId}`);
+  }
+
+  async updateConversationTitle(
+    workspaceId: string,
+    conversationId: string,
+    title: string
+  ): Promise<ConversationDetail> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/conversations/${conversationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  async deleteConversation(
+    workspaceId: string,
+    conversationId: string
+  ): Promise<{ message: string }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/conversations/${conversationId}`, {
       method: "DELETE",
     });
   }
@@ -112,7 +234,9 @@ class ApiClient {
   async askQuestion(
     workspaceId: string,
     question: string,
-    documentIds?: string[]
+    documentIds?: string[],
+    conversationId?: string,
+    userId?: string
   ): Promise<GroundedAnswerResponse> {
     return this.request(`/api/v1/workspaces/${workspaceId}/ask`, {
       method: "POST",
@@ -120,6 +244,8 @@ class ApiClient {
       body: JSON.stringify({
         question,
         document_ids: documentIds && documentIds.length > 0 ? documentIds : undefined,
+        conversation_id: conversationId,
+        user_id: userId,
       }),
     });
   }

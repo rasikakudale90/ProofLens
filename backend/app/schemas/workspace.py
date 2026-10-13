@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class WorkspaceBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Name of the workspace")
+    user_id: Optional[str] = Field(None, description="Owner user ID of the workspace")
 
 
 class WorkspaceCreate(WorkspaceBase):
@@ -16,3 +17,4 @@ class WorkspaceResponse(WorkspaceBase):
 
     id: str
     created_at: datetime
+    user_id: Optional[str] = None

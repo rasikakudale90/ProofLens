@@ -25,6 +25,15 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     Base.metadata.create_all(bind=test_engine)
+    from app.db.models import User
+    from app.core.security import hash_password
+    db = TestingSessionLocal()
+    u1 = User(name="Rasika Kudale", email="rasika@prooflens.ai", hashed_password=hash_password("password123"), role="Lead Forensic Auditor", avatar_color="#6366f1")
+    u2 = User(name="Alex Vance", email="alex@prooflens.ai", hashed_password=hash_password("password123"), role="Senior Research Analyst", avatar_color="#06b6d4")
+    u3 = User(name="Devin Hayes", email="devin@prooflens.ai", hashed_password=hash_password("password123"), role="Compliance Officer", avatar_color="#10b981")
+    db.add_all([u1, u2, u3])
+    db.commit()
+    db.close()
     yield
     Base.metadata.drop_all(bind=test_engine)
 

@@ -58,16 +58,34 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=True)
+    role = Column(String(100), default="Lead Forensic Auditor", nullable=False)
+    avatar_color = Column(String(50), default="#6366f1", nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    workspaces = relationship("Workspace", back_populates="user")
+    conversations = relationship("Conversation", back_populates="user")
+
+
 class Workspace(Base):
     __tablename__ = "workspaces"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
+    user = relationship("User", back_populates="workspaces")
     documents = relationship("Document", back_populates="workspace", cascade="all, delete-orphan")
     query_runs = relationship("QueryRun", back_populates="workspace", cascade="all, delete-orphan")
     analysis_runs = relationship("AnalysisRun", back_populates="workspace", cascade="all, delete-orphan")
+    conversations = relationship("Conversation", back_populates="workspace", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -207,3 +225,39 @@ class EvaluationRun(Base):
     metrics = Column(JSON, default=dict, nullable=False)
     sample_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    title = Column(String(255), default="New Conversation", nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    workspace = relationship("Workspace", back_populates="conversations")
+    user = relationship("User", back_populates="conversations")
+    messages = relationship(
+        "ConversationMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ConversationMessage.created_at.asc()",
+    )
+
+
+class ConversationMessage(Base):
+    __tablename__ = "conversation_messages"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    status = Column(String(50), nullable=True)  # "answered", "insufficient_evidence"
+    citations = Column(JSON, default=list, nullable=False)
+    limitations = Column(JSON, default=list, nullable=False)
+    model_metadata = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    conversation = relationship("Conversation", back_populates="messages")

@@ -1,7 +1,23 @@
 export interface Workspace {
   id: string;
   name: string;
+  user_id?: string | null;
   created_at: string;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar_color: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: UserProfile;
 }
 
 export interface DocumentItem {
@@ -52,6 +68,40 @@ export interface GroundedAnswerResponse {
   citations: CitationItem[];
   limitations: string[];
   model_metadata?: Record<string, unknown>;
+  conversation_id?: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  workspace_id: string;
+  user_id?: string | null;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  last_message_preview?: string | null;
+}
+
+export interface ConversationMessageItem {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant";
+  content: string;
+  status?: string | null;
+  citations: CitationItem[];
+  limitations: string[];
+  model_metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  workspace_id: string;
+  user_id?: string | null;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: ConversationMessageItem[];
 }
 
 export interface ClaimAssessmentItem {

@@ -17,7 +17,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
-import { Workspace } from "@/lib/types";
+import { Workspace, UserProfile } from "@/lib/types";
+import { UserSwitcher } from "./user-switcher";
 
 export type NavTab = "documents" | "assistant" | "claims" | "radar" | "briefs" | "evaluation";
 
@@ -28,6 +29,12 @@ interface SidebarProps {
   currentWorkspace: Workspace | null;
   onWorkspaceChange: (ws: Workspace) => void;
   onOpenCreateWorkspace: () => void;
+  users: UserProfile[];
+  currentUser: UserProfile | null;
+  onSelectUser: (user: UserProfile) => void;
+  onCreateUser: (payload: { name: string; email: string; password?: string; role: string; avatar_color: string }) => Promise<void>;
+  onLogout?: () => void;
+  onOpenAuth?: (prefillEmail?: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   backendOnline: boolean;
@@ -42,6 +49,12 @@ export function Sidebar({
   currentWorkspace,
   onWorkspaceChange,
   onOpenCreateWorkspace,
+  users,
+  currentUser,
+  onSelectUser,
+  onCreateUser,
+  onLogout,
+  onOpenAuth,
   isCollapsed,
   onToggleCollapse,
   backendOnline,
@@ -180,8 +193,18 @@ export function Sidebar({
         </nav>
       </div>
 
-      {/* Bottom: Status & Theme Toggle */}
+      {/* Bottom: User Switcher, Status & Theme Toggle */}
       <div className="p-3 border-t border-border flex flex-col gap-2">
+        {/* Multiuser Switcher */}
+        <UserSwitcher
+          users={users}
+          currentUser={currentUser}
+          onSelectUser={onSelectUser}
+          onCreateUser={onCreateUser}
+          onLogout={onLogout}
+          onOpenAuth={onOpenAuth}
+          isCollapsed={isCollapsed}
+        />
         {/* Backend health status badge */}
         <div
           className={`flex items-center gap-2 px-2.5 py-1.5 rounded-[7px] text-[11px] bg-surface-muted ${

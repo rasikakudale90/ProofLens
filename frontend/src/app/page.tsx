@@ -10,9 +10,11 @@ import { ClaimLedger } from "@/components/claim-ledger";
 import { ContradictionRadar } from "@/components/contradiction-radar";
 import { ResearchBrief } from "@/components/research-brief";
 import { EvaluationDashboard } from "@/components/evaluation-dashboard";
+import { AuthModal } from "@/components/auth-modal";
 import { api } from "@/lib/api";
 import {
   Workspace,
+  UserProfile,
   DocumentItem,
   CitationItem,
   GroundedAnswerResponse,
@@ -27,6 +29,10 @@ export default function Home() {
   const [currentTab, setCurrentTab] = useState<NavTab>("documents");
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authPrefillEmail, setAuthPrefillEmail] = useState("");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -37,12 +43,17 @@ export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Ask Question handler
-  const handleAskQuestion = async (question: string): Promise<GroundedAnswerResponse> => {
+  const handleAskQuestion = async (
+    question: string,
+    conversationId?: string
+  ): Promise<GroundedAnswerResponse> => {
     if (!currentWorkspace) throw new Error("No active workspace selected.");
     return api.askQuestion(
       currentWorkspace.id,
       question,
-      selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
+      selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
+      conversationId,
+      currentUser?.id
     );
   };
 
@@ -103,7 +114,65 @@ export default function Home() {
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
-  // 1. Initial health and workspace load
+  // Multiuser & Auth Handlers
+  const handleOpenAuth = (email?: string) => {
+    setAuthPrefillEmail(email || "");
+    setIsAuthModalOpen(true);
+  };
+
+  const handleSelectUser = (user: UserProfile) => {
+    if (user.id !== currentUser?.id) {
+      handleOpenAuth(user.email);
+    }
+  };
+
+  const handleAuthSuccess = async (user: UserProfile) => {
+    setCurrentUser(user);
+    setIsAuthModalOpen(false);
+    setAuthPrefillEmail("");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("prooflens_user_id", user.id);
+    }
+    try {
+      const userList = await api.getUsers();
+      setUsers(userList);
+      const wsList = await api.getWorkspaces(user.id);
+      setWorkspaces(wsList);
+      if (wsList.length > 0) {
+        setCurrentWorkspace(wsList[0]);
+      } else {
+        const defaultWs = await api.createWorkspace("ProofLens Default Investigation", user.id);
+        setWorkspaces([defaultWs]);
+        setCurrentWorkspace(defaultWs);
+      }
+    } catch (err) {
+      console.error("Failed to refresh state after authentication:", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await api.logout();
+    setCurrentUser(null);
+    setCurrentWorkspace(null);
+    setDocuments([]);
+    setWorkspaces([]);
+    setAuthPrefillEmail("");
+    setIsAuthModalOpen(true);
+  };
+
+  const handleCreateUser = async (payload: {
+    name: string;
+    email: string;
+    password?: string;
+    role: string;
+    avatar_color: string;
+  }) => {
+    const newUser = await api.createUser(payload);
+    setUsers((prev) => [...prev, newUser]);
+    handleOpenAuth(newUser.email);
+  };
+
+  // 1. Initial health, auth check, users, and workspace load
   useEffect(() => {
     let active = true;
     const init = async () => {
@@ -111,16 +180,49 @@ export default function Home() {
         const readyRes = await api.getReady();
         if (active) setBackendOnline(readyRes.status === "ready");
 
-        const wsList = await api.getWorkspaces();
-        if (active) {
-          if (wsList.length > 0) {
-            setWorkspaces(wsList);
-            setCurrentWorkspace(wsList[0]);
-          } else {
-            // Create default workspace if none exists
-            const defaultWs = await api.createWorkspace("ProofLens Default Investigation");
-            setWorkspaces([defaultWs]);
-            setCurrentWorkspace(defaultWs);
+        // Check authentication token
+        const token = typeof window !== "undefined" ? localStorage.getItem("prooflens_token") : null;
+        let authenticatedUser: UserProfile | null = null;
+
+        if (token) {
+          try {
+            authenticatedUser = await api.getMe();
+            if (active) setCurrentUser(authenticatedUser);
+          } catch {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("prooflens_token");
+              localStorage.removeItem("prooflens_user_id");
+            }
+          }
+        }
+
+        // Load users list for demo & switcher display
+        try {
+          const userList = await api.getUsers();
+          if (active) {
+            setUsers(userList);
+          }
+        } catch (uErr) {
+          console.error("Failed to load users:", uErr);
+        }
+
+        if (authenticatedUser) {
+          const wsList = await api.getWorkspaces(authenticatedUser.id);
+          if (active) {
+            if (wsList.length > 0) {
+              setWorkspaces(wsList);
+              setCurrentWorkspace(wsList[0]);
+            } else {
+              const defaultWs = await api.createWorkspace("ProofLens Default Investigation", authenticatedUser.id);
+              setWorkspaces([defaultWs]);
+              setCurrentWorkspace(defaultWs);
+            }
+          }
+        } else {
+          // Authentication required for each and every user
+          if (active) {
+            setCurrentUser(null);
+            setIsAuthModalOpen(true);
           }
         }
       } catch (err) {
@@ -211,13 +313,12 @@ export default function Home() {
     setSelectedDocumentIds([]);
   };
 
-  // 4. Create Workspace
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWorkspaceName.trim()) return;
     setIsCreatingWorkspace(true);
     try {
-      const created = await api.createWorkspace(newWorkspaceName.trim());
+      const created = await api.createWorkspace(newWorkspaceName.trim(), currentUser?.id);
       setWorkspaces((prev) => [created, ...prev]);
       setCurrentWorkspace(created);
       setNewWorkspaceName("");
@@ -230,6 +331,39 @@ export default function Home() {
   };
 
   const selectedDocs = documents.filter((d) => selectedDocumentIds.includes(d.id));
+
+  // Gated Authentication: If initial loading, display verification spinner
+  if (loadingInitial) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-3 animate-in fade-in duration-300">
+          <div className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg animate-pulse">
+            <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+          <div className="text-center">
+            <h2 className="text-base font-semibold text-foreground tracking-tight">ProofLens AI</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Verifying authentication & security credentials...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Strict Authentication Wall: If unauthenticated, render the full Auth Portal
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen w-screen bg-background relative flex flex-col justify-center items-center p-4 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+        <AuthModal
+          isOpen={true}
+          canDismiss={false}
+          onAuthSuccess={handleAuthSuccess}
+          initialEmail={authPrefillEmail}
+          registeredUsers={users}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -244,6 +378,12 @@ export default function Home() {
         currentWorkspace={currentWorkspace}
         onWorkspaceChange={setCurrentWorkspace}
         onOpenCreateWorkspace={() => setIsCreateModalOpen(true)}
+        users={users}
+        currentUser={currentUser}
+        onSelectUser={handleSelectUser}
+        onCreateUser={handleCreateUser}
+        onLogout={handleLogout}
+        onOpenAuth={handleOpenAuth}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         backendOnline={backendOnline}
@@ -259,6 +399,9 @@ export default function Home() {
           selectedDocuments={selectedDocs}
           totalDocuments={documents.length}
           onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onOpenAuth={handleOpenAuth}
         />
 
         {/* Tab Canvas */}
@@ -285,8 +428,10 @@ export default function Home() {
 
               {currentTab === "assistant" && (
                 <div className="flex h-full w-full overflow-hidden">
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="flex-1 overflow-hidden">
                     <EvidenceAssistant
+                      workspaceId={currentWorkspace?.id}
+                      currentUser={currentUser}
                       documents={documents}
                       selectedDocumentIds={selectedDocumentIds}
                       onAsk={handleAskQuestion}
@@ -385,6 +530,16 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Authentication Modal (for switching accounts or signing in) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+        canDismiss={!!currentUser}
+        initialEmail={authPrefillEmail}
+        registeredUsers={users}
+      />
     </div>
   );
 }
