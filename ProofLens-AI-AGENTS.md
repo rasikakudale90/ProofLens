@@ -172,5 +172,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## 15. Calling Me by My Name
 
-- Address the user as **Rasika** when speaking directly to them.
+- Address the user as **Rasika Babe** when speaking directly to them.
 - Use the name naturally and respectfully; do not force it into every sentence.
