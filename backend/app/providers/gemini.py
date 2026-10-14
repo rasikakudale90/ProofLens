@@ -35,24 +35,35 @@ class GeminiProvider(AIProvider):
         if not self.client:
             return self._mock_embedding(text)
 
-        try:
-            response = self.client.models.embed_content(
-                model=self.embedding_model,
-                contents=text,
-            )
-            # Response contains embeddings list
-            if hasattr(response, "embedding") and response.embedding:
-                return response.embedding.values
-            if hasattr(response, "embeddings") and response.embeddings:
-                return response.embeddings[0].values
-            raise ValueError("No embedding returned in provider response.")
-        except Exception as e:
-            logger.error(f"Gemini embed_text failed: {e}")
-            raise AppError(
-                code="PROVIDER_ERROR",
-                message=f"Gemini embedding API call failed: {str(e)}",
-                status_code=502,
-            )
+        candidate_models = [self.embedding_model]
+        for fallback in ["gemini-embedding-001", "gemini-embedding-2"]:
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
+
+        last_error = None
+        for model_id in candidate_models:
+            try:
+                config = types.EmbedContentConfig(output_dimensionality=self.dimensions) if self.dimensions else None
+                response = self.client.models.embed_content(
+                    model=model_id,
+                    contents=text,
+                    config=config,
+                )
+                if hasattr(response, "embeddings") and response.embeddings:
+                    return response.embeddings[0].values
+                if hasattr(response, "embedding") and response.embedding:
+                    return response.embedding.values
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Embedding with model {model_id} failed: {e}")
+                continue
+
+        logger.error(f"All Gemini embedding candidate models failed. Last error: {last_error}")
+        raise AppError(
+            code="PROVIDER_ERROR",
+            message=f"Gemini embedding API call failed: {str(last_error)}",
+            status_code=502,
+        )
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         if not self.client:
@@ -76,26 +87,36 @@ class GeminiProvider(AIProvider):
                 status_code=500,
             )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.generation_model,
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                    response_schema=response_schema,
-                ),
-            )
-            # The structured response text can be parsed directly with Pydantic
-            raw_json = response.text
-            return response_schema.model_validate_json(raw_json)
-        except Exception as e:
-            logger.error(f"Gemini generate_structured failed: {e}")
-            raise AppError(
-                code="PROVIDER_ERROR",
-                message=f"Gemini generation API call failed: {str(e)}",
-                status_code=502,
-            )
+        candidate_models = [self.generation_model]
+        for fallback in ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]:
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
+
+        last_error = None
+        for model_id in candidate_models:
+            try:
+                response = self.client.models.generate_content(
+                    model=model_id,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=response_schema,
+                    ),
+                )
+                raw_json = response.text
+                return response_schema.model_validate_json(raw_json)
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Gemini generation with {model_id} failed: {e}, attempting next model...")
+                continue
+
+        logger.error(f"All Gemini generation candidate models failed. Last error: {last_error}")
+        raise AppError(
+            code="PROVIDER_ERROR",
+            message=f"Gemini generation API call failed: {str(last_error)}",
+            status_code=502,
+        )
 
     def _mock_embedding(self, text: str) -> List[float]:
         """

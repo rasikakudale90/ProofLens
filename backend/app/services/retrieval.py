@@ -108,12 +108,17 @@ def retrieve_evidence(
     is_generic = is_generic_query(question)
 
     # 3. Embed Query (if real provider is configured)
-    provider = ai_provider or get_ai_provider()
-    query_vector = provider.embed_text(question)
+    query_vector = None
+    try:
+        provider = ai_provider or get_ai_provider()
+        query_vector = provider.embed_text(question)
+    except Exception as e:
+        logger.warning(f"Vector embedding for query failed ({e}), falling back to lexical search.")
+        query_vector = None
 
     # 4. Query Chunks
     # If using PostgreSQL with pgvector enabled AND Gemini API key configured
-    if db.bind and db.bind.dialect.name == "postgresql" and settings.USE_PGVECTOR and settings.GEMINI_API_KEY:
+    if db.bind and db.bind.dialect.name == "postgresql" and settings.USE_PGVECTOR and settings.GEMINI_API_KEY and query_vector:
         stmt = text("""
             SELECT 
                 c.id AS chunk_id,

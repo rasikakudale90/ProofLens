@@ -64,8 +64,8 @@ class Settings(BaseSettings):
 
     # AI Provider (Google Gemini)
     GEMINI_API_KEY: str = ""
-    GEMINI_GENERATION_MODEL: str = "gemini-2.5-flash"
-    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    GEMINI_GENERATION_MODEL: str = "gemini-flash-latest"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
     EMBEDDING_DIMENSIONS: int = 768
 
     # Constraints and Pipeline Defaults
