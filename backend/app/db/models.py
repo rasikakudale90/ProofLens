@@ -18,7 +18,19 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.types import TypeDecorator
 
 try:
+    import pgvector.vector
     from pgvector.sqlalchemy import Vector
+
+    _orig_vector_from_db = pgvector.vector.Vector._from_db
+
+    def _safe_vector_from_db(cls, value, /):
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [float(v) for v in value]
+        return _orig_vector_from_db(value)
+
+    pgvector.vector.Vector._from_db = classmethod(_safe_vector_from_db)
 except ImportError:
     Vector = None  # type: ignore
 
