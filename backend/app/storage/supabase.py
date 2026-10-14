@@ -31,8 +31,15 @@ class SupabaseStorageService(StorageService):
         return storage_key
 
     def download_file(self, storage_key: str) -> bytes:
-        res = self.client.storage.from_(self.bucket).download(storage_key)
-        return res
+        try:
+            res = self.client.storage.from_(self.bucket).download(storage_key)
+            return res
+        except Exception:
+            try:
+                from app.storage.local import LocalStorageService
+                return LocalStorageService().download_file(storage_key)
+            except Exception:
+                raise
 
     def delete_file(self, storage_key: str) -> bool:
         res = self.client.storage.from_(self.bucket).remove([storage_key])

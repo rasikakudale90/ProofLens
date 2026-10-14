@@ -6,7 +6,7 @@ from app.core.config import settings
 
 class LocalStorageService(StorageService):
     def __init__(self, base_dir: str = settings.LOCAL_STORAGE_DIR):
-        self.base_dir = base_dir
+        self.base_dir = os.path.abspath(base_dir)
         os.makedirs(self.base_dir, exist_ok=True)
 
     def _get_full_path(self, storage_key: str) -> str:

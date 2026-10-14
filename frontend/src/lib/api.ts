@@ -226,7 +226,12 @@ class ApiClient {
       let errMsg = `Upload failed with status ${res.status}`;
       try {
         const err = await res.json();
-        errMsg = err.detail?.message || err.detail || errMsg;
+        errMsg =
+          err.error?.message ||
+          err.detail?.message ||
+          err.detail ||
+          err.message ||
+          errMsg;
       } catch {
         // use fallback
       }

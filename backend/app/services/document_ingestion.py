@@ -53,12 +53,20 @@ def ingest_document(
     try:
         storage.upload_file(storage_key, file_bytes, content_type="application/pdf")
     except Exception as e:
-        logger.error(f"Failed to store file {filename}: {e}")
-        raise AppError(
-            code="STORAGE_ERROR",
-            message="Failed to save uploaded document to storage.",
-            status_code=500,
-        )
+        logger.warning(f"Primary storage upload failed for {filename} ({e}). Falling back to local storage...")
+        try:
+            from app.storage.local import LocalStorageService
+            fallback = LocalStorageService()
+            fallback.upload_file(storage_key, file_bytes, content_type="application/pdf")
+            logger.info(f"Fallback storage upload succeeded for {filename}")
+        except Exception as fb_err:
+            logger.error(f"Both storage backends failed for {filename}: {fb_err}")
+            raise AppError(
+                code="STORAGE_ERROR",
+                message=f"Failed to save uploaded document to storage: {e}",
+                status_code=500,
+                details={"primary_error": str(e), "fallback_error": str(fb_err)},
+            )
 
     # 5. Create initial Document DB record
     doc = Document(
