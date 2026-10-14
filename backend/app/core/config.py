@@ -40,26 +40,43 @@ class Settings(BaseSettings):
         return v
 
     # Database
-    DATABASE_URL: str = "postgresql+psycopg://postgres:rasika@localhost:5432/prooflens"
+    DATABASE_URL: str = (
+        "postgresql+psycopg://postgres.wevngldabokxspwnwkdb:r8ja1Da06laUWtDM@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+    )
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def assemble_db_connection(cls, v: Any) -> str:
         if isinstance(v, str):
             url = v.strip()
-            if url.startswith("postgres://"):
+            # Intercept IPv6-only Supabase direct host and rewrite to IPv4 Session pooler
+            import re
+            m = re.search(
+                r"postgresql(?:\+psycopg)?://([^:]+):([^@]+)@db\.([a-zA-Z0-9]+)\.supabase\.co(?::\d+)?/(.+)",
+                url,
+            )
+            if m:
+                user, password, project_ref, dbname = m.groups()
+                pooler_user = f"postgres.{project_ref}" if not user.startswith("postgres.") else user
+                url = f"postgresql+psycopg://{pooler_user}:{password}@aws-0-ap-southeast-1.pooler.supabase.com:5432/{dbname}"
+            elif url.startswith("postgres://"):
                 url = url.replace("postgres://", "postgresql+psycopg://", 1)
             elif url.startswith("postgresql://") and not url.startswith("postgresql+psycopg://"):
                 url = url.replace("postgresql://", "postgresql+psycopg://", 1)
             return url
         return v
-    USE_PGVECTOR: bool = False
+
+    USE_PGVECTOR: bool = True
 
     # Storage
-    STORAGE_BACKEND: Literal["local", "supabase"] = "local"
+    STORAGE_BACKEND: Literal["local", "supabase"] = "supabase"
     LOCAL_STORAGE_DIR: str = "storage/local"
-    SUPABASE_URL: str = ""
-    SUPABASE_KEY: str = ""
+    SUPABASE_URL: str = "https://wevngldabokxspwnwkdb.supabase.co"
+    SUPABASE_KEY: str = (
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+        "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indldm5nbGRhYm9reHNwd253a2RiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTk2NzIzOCwiZXhwIjoyMTA3NTQzMjM4fQ."
+        "CLo3boyaLekcLDoVE4Co0cfLcCLETy6CWO4bZGs5Eqk"
+    )
     SUPABASE_BUCKET: str = "prooflens-documents"
 
     # AI Provider (Google Gemini)

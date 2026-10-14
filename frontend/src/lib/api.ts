@@ -38,7 +38,12 @@ class ApiClient {
       let errMsg = `API error ${res.status}: ${res.statusText}`;
       try {
         const errorData = await res.json();
-        errMsg = errorData.detail?.message || errorData.detail || errorData.message || errMsg;
+        errMsg =
+          errorData.error?.message ||
+          errorData.detail?.message ||
+          errorData.detail ||
+          errorData.message ||
+          errMsg;
       } catch {
         // fallback to status text
       }

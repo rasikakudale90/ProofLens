@@ -25,10 +25,14 @@ def get_db():
         db.close()
 
 
-def check_db_health() -> bool:
+def check_db_health() -> tuple[bool, str]:
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return True
-    except Exception:
-        return False
+        return True, "connected"
+    except Exception as e:
+        import re
+        err_msg = str(e)
+        err_msg = re.sub(r":([^@/:\s]+)@", ":***@", err_msg)
+        return False, err_msg
+

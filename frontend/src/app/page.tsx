@@ -177,8 +177,13 @@ export default function Home() {
     let active = true;
     const init = async () => {
       try {
-        const readyRes = await api.getReady();
-        if (active) setBackendOnline(readyRes.status === "ready");
+        try {
+          const readyRes = await api.getReady();
+          if (active) setBackendOnline(readyRes.status === "ready");
+        } catch (readyErr) {
+          console.warn("Backend ready check pending or degraded:", readyErr);
+          if (active) setBackendOnline(false);
+        }
 
         // Check authentication token
         const token = typeof window !== "undefined" ? localStorage.getItem("prooflens_token") : null;

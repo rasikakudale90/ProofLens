@@ -17,13 +17,14 @@ def health_check():
 
 @router.get("/ready", status_code=status.HTTP_200_OK)
 def readiness_check():
-    db_healthy = check_db_health()
+    db_healthy, db_detail = check_db_health()
     is_ready = db_healthy
 
     response_data = {
         "status": "ready" if is_ready else "degraded",
         "dependencies": {
             "database": "connected" if db_healthy else "disconnected",
+            "database_detail": db_detail,
             "storage_backend": settings.STORAGE_BACKEND,
         },
     }
@@ -31,3 +32,4 @@ def readiness_check():
     if not is_ready:
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=response_data)
     return response_data
+
