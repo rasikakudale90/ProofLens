@@ -85,7 +85,26 @@
 
 ---
 
-## 4. How to Resume in Next Session
+## 4. Production Cloud Deployment Configuration
+
+### Target Architecture:
+- **Database & Storage**: **Supabase**
+  - PostgreSQL with `pgvector` enabled (`CREATE EXTENSION IF NOT EXISTS vector;`).
+  - Storage Bucket: `prooflens-documents` (private, managed via Supabase Service Role).
+  - Setup script created: `supabase_setup.sql`.
+- **Backend Service**: **Render**
+  - Python Web Service configured via `render.yaml` root Blueprint and `backend/runtime.txt` (Python 3.11.9).
+  - Native health checks at `/health`.
+  - Auto-normalizes Supabase `DATABASE_URL` (direct & session pooler) to `postgresql+psycopg://`.
+  - CORS supports all Vercel domains via `allow_origin_regex=r"^https:\/\/.*\.vercel\.app$"` alongside explicit origin lists.
+- **Frontend Application**: **Vercel**
+  - Next.js 16.4 deployed with Root Directory: `frontend`.
+  - `NEXT_PUBLIC_API_URL` environment variable pointing to the Render backend URL.
+  - Pre-configured `frontend/vercel.json` and `frontend/.env.example`.
+
+---
+
+## 5. How to Resume Locally
 
 ### Start Backend Server:
 ```powershell
@@ -106,6 +125,8 @@ npm run dev -- -p 3001
 
 ---
 
-## 5. Next Planned Actions
-- [ ] Confirm if user wants `pgvector` extension enabled in PostgreSQL (files ready in `install_pgvector.bat`).
-- [ ] Incorporate any additional audit workflows or export formats requested by Rasika Babe.
+## 6. Next Planned Actions
+- [x] Configure cloud deployment architecture (Supabase + Render + Vercel).
+- [ ] Connect Supabase instance and run `supabase_setup.sql`.
+- [ ] Deploy backend on Render using root `render.yaml`.
+- [ ] Deploy frontend on Vercel with `NEXT_PUBLIC_API_URL`.

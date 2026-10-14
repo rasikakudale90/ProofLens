@@ -17,18 +17,30 @@ from app.api.routes import health
 
 setup_logging()
 
+from contextlib import asynccontextmanager
+from app.db.init_db import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Evidence-first document intelligence platform — ProofLens AI REST API",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,12 +62,6 @@ async def add_process_time_and_request_id(request: Request, call_next):
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
-
-from app.db.init_db import init_db
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 from app.api.routes import (
     health,

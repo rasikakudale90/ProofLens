@@ -14,7 +14,7 @@ import {
   EvaluationSummaryResponse,
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 class ApiClient {
   private base = API_BASE_URL;
@@ -204,9 +204,16 @@ class ApiClient {
     const formData = new FormData();
     formData.append("file", file);
 
+    const token = typeof window !== "undefined" ? localStorage.getItem("prooflens_token") : null;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const url = `${this.base}/api/v1/workspaces/${workspaceId}/documents`;
     const res = await fetch(url, {
       method: "POST",
+      headers,
       body: formData,
     });
 
@@ -317,8 +324,13 @@ class ApiClient {
   }
 
   async exportBriefMarkdown(workspaceId: string, briefId: string): Promise<string> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("prooflens_token") : null;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
     const url = `${this.base}/api/v1/workspaces/${workspaceId}/briefs/${briefId}/markdown`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       throw new Error(`Failed to download markdown: HTTP ${res.status}`);
     }
