@@ -88,7 +88,7 @@ class GeminiProvider(AIProvider):
             )
 
         candidate_models = [self.generation_model]
-        for fallback in ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]:
+        for fallback in ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.5-flash", "gemini-3.8-flash"]:
             if fallback not in candidate_models:
                 candidate_models.append(fallback)
 
